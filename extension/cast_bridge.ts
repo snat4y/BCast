@@ -7,21 +7,19 @@ interface Window {
   __onGCastApiAvailable: (isAvailable: boolean) => void;
 }
 
-// ---------------------------------------------------------
 const CAST_APP_ID = '298333F8'; 
 const CUSTOM_NAMESPACE = 'urn:x-cast:com.bcast.data';
-// ---------------------------------------------------------
 
 console.log('[BCast] Bridge Loaded');
 
 // 1. Load the Google Cast SDK dynamically
 const loadCastSdk = () => {
   if (document.querySelector('script[src*="cast_framework.js"]')) {
-      console.log('[BCast] SDK script already present');
+      // SDK script is already on the page
       return;
   }
   const script = document.createElement('script');
-  script.src = '//www.gstatic.com/cast/sdk/libs/sender/v1/cast_framework.js?loadCastFramework=1';
+  script.src = 'https://www.gstatic.com/cast/sdk/libs/sender/v1/cast_framework.js?loadCastFramework=1';
   document.head.appendChild(script);
 };
 
@@ -33,7 +31,7 @@ window.__onGCastApiAvailable = (isAvailable: boolean) => {
         receiverApplicationId: CAST_APP_ID,
         autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
       });
-      console.log('[BCast] SDK Initialized with ID:', CAST_APP_ID);
+      console.log('[BCast] SDK Initialized');
     } catch (e) {
       console.error('[BCast] SDK Init Error:', e);
     }
@@ -42,21 +40,21 @@ window.__onGCastApiAvailable = (isAvailable: boolean) => {
 
 // 3. Listen for messages from Content Script
 window.addEventListener('message', async (event) => {
-  // Only accept messages from ourselves
+  // Only accept messages from the same window and our specific source
   if (event.source !== window || !event.data || event.data.source !== 'BCAST_CONTENT') {
     return;
   }
 
   if (event.data.type === 'INIT_CAST') {
-    console.log('[BCast] Casting requested for:', event.data.payload.title);
     startCasting(event.data.payload);
   }
 });
 
 async function startCasting(albumData: any) {
-  // FIX: Access cast via window to avoid ReferenceError
+  // Check if SDK is actually loaded
   if (!window.cast || !window.cast.framework) {
-      alert("Cast SDK is loading... please wait a moment and try again.");
+      console.warn('[BCast] Cast SDK not loaded yet. Waiting...');
+      // In a real scenario, you might want to queue this or show a "Loading..." spinner
       return;
   }
 
@@ -68,10 +66,10 @@ async function startCasting(albumData: any) {
     
     const session = context.getCurrentSession();
     if (!session) {
-        throw new Error("Failed to create session");
+        throw new Error("No active session");
     }
 
-    // Send the Album Data to the receiver via custom channel
+    // Send the Album Data
     session.sendMessage(CUSTOM_NAMESPACE, {
       type: 'LOAD_ALBUM',
       payload: albumData
@@ -80,14 +78,10 @@ async function startCasting(albumData: any) {
     .catch((e: any) => console.error('[BCast] Send Error:', e));
 
   } catch (error) {
-    console.error('[BCast] Cast Error:', error);
-    if (String(error).includes('cancel')) {
-        // User cancelled dialog
-    } else {
-        // Optional: alert user if it's a real error
-    }
+    // Errors here include user cancelling the dialog
+    console.log('[BCast] Cast session handling:', error);
   }
 }
 
-// Start the process
+// Start loading the SDK immediately
 loadCastSdk();
