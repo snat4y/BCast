@@ -1,0 +1,5 @@
+{
+  "name": "BCast Extension",
+  "description": "A Chrome Extension simulation that casts Bandcamp albums to a TV interface by scraping the DOM.",
+  "requestFramePermissions": []
+}

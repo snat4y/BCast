@@ -1,0 +1,1 @@
+// Service removed. Using DOM scraper (services/scraper.ts) instead.

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BandCast Popup</title>
+    <!-- Note: In a production extension, you should bundle Tailwind CSS locally instead of using CDN due to CSP restrictions. 
+         For this build example, we assume permissions allow it or you will add a local css file. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body { width: 300px; height: auto; margin: 0; padding: 0; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <div id="popup-root"></div>
+    <script type="module" src="/extension/popup.tsx"></script>
+  </body>
+</html>
