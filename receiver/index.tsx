@@ -20,7 +20,7 @@ const ReceiverApp = () => {
     const playerManager = context.getPlayerManager();
 
     // Listen for custom messages from the Sender (Extension) containing Album Data
-    const CUSTOM_CHANNEL = 'urn:x-cast:com.bandcast.data';
+    const CUSTOM_CHANNEL = 'urn:x-cast:com.bcast.data';
     
     context.addCustomMessageListener(CUSTOM_CHANNEL, (event: any) => {
       const data = event.data;
@@ -40,7 +40,7 @@ const ReceiverApp = () => {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-slate-900 text-white">
         <div className="text-center">
-          <h1 className="text-4xl font-bold mb-4">BandCast</h1>
+          <h1 className="text-4xl font-bold mb-4">BCast</h1>
           <p className="text-slate-400">Ready to Cast. Waiting for content...</p>
         </div>
       </div>

@@ -4,7 +4,7 @@
 declare var chrome: any;
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('BandCast Extension installed');
+  console.log('BCast Extension installed');
 });
 
 // Example: Listen for messages from the popup or content script

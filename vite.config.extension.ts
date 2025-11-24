@@ -13,7 +13,6 @@ const copyManifest = () => {
       if (!fs.existsSync('dist-extension/icons')) {
         fs.mkdirSync('dist-extension/icons', { recursive: true });
       }
-      // In a real scenario, you would copy actual icon files here
     }
   };
 };
@@ -28,6 +27,7 @@ export default defineConfig({
         popup: resolve(__dirname, 'popup.html'),
         background: resolve(__dirname, 'extension/background.ts'),
         content: resolve(__dirname, 'extension/content.ts'),
+        cast_bridge: resolve(__dirname, 'extension/cast_bridge.ts'), // Added bridge script
       },
       output: {
         entryFileNames: '[name].js',

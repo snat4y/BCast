@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "BandCast",
-  "version": "1.0.0",
+  "name": "BCast",
+  "version": "0.1",
   "description": "Cast Bandcamp albums to your TV",
   "permissions": [
     "activeTab",
@@ -27,7 +27,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["assets/*"],
+      "resources": ["cast_bridge.js", "assets/*"],
       "matches": ["*://*.bandcamp.com/*"]
     }
   ]

@@ -1,42 +1,77 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import ExtensionPopup from '../components/ExtensionPopup';
-import { Album } from '../types';
 
 declare var chrome: any;
+declare var cast: any;
 
-// This acts as the entry point for the little popup window when you click the extension icon
+// ---------------------------------------------------------
+// TODO: SAME APP ID AS IN cast_bridge.ts
+const CAST_APP_ID = '298333F8'; 
+// ---------------------------------------------------------
+
 const PopupEntry = () => {
   const [isOpen, setIsOpen] = useState(true);
 
+  // Initialize Cast Context when popup opens
+  useEffect(() => {
+    const initCast = () => {
+      if (typeof cast !== 'undefined' && cast.framework) {
+        try {
+          cast.framework.CastContext.getInstance().setOptions({
+            receiverApplicationId: CAST_APP_ID,
+            autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+          });
+        } catch(e) { console.log("Context already initialized"); }
+      }
+    };
+    
+    // Check if SDK is loaded
+    if (window['chrome'] && window['chrome']['cast']) {
+      initCast();
+    } else {
+      window['__onGCastApiAvailable'] = (isAvailable: boolean) => {
+        if (isAvailable) initCast();
+      };
+    }
+  }, []);
+
   const handleCast = () => {
-    // 1. Send message to Content Script to get Data
-    // Note: In the real extension, 'chrome' is defined. In this simulator, it is not.
+    // 1. Get Data from Content Script
     if (typeof chrome !== 'undefined' && chrome.tabs) {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs: any[]) => {
-        if (tabs[0].id) {
-          chrome.tabs.sendMessage(tabs[0].id, { action: "GET_ALBUM_DATA" }, (response: any) => {
+        if (tabs[0]?.id) {
+          chrome.tabs.sendMessage(tabs[0].id, { action: "GET_ALBUM_DATA" }, async (response: any) => {
             if (response && response.success) {
-               // 2. Initialize Cast Session with this data
-               // This usually involves sending a message to the Background script 
-               // or using the Cast SDK directly if loaded in the popup.
-               console.log("Casting Album:", response.data);
-               
-               // For now, we simulate success
-               window.close(); // Close popup
+               await startPopupCast(response.data);
+            } else {
+               alert("Go to a Bandcamp album page to cast.");
             }
           });
         }
       });
-    } else {
-      console.warn("Chrome API not available in simulator");
-      alert("This Cast button only works when packaged as an extension.");
     }
+  };
+
+  const startPopupCast = async (albumData: any) => {
+     try {
+       const context = cast.framework.CastContext.getInstance();
+       await context.requestSession();
+       const session = context.getCurrentSession();
+       if (session) {
+         session.sendMessage('urn:x-cast:com.bcast.data', {
+            type: 'LOAD_ALBUM',
+            payload: albumData
+         });
+         window.close();
+       }
+     } catch (e) {
+       console.error("Popup Cast Error:", e);
+     }
   };
 
   return (
     <div className="w-[300px] h-auto min-h-[200px] bg-white">
-      {/* We reuse the component, but force it open */}
       <ExtensionPopup 
         isOpen={isOpen} 
         onClose={() => window.close()} 

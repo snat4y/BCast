@@ -72,7 +72,7 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
       <div className="relative z-10 flex justify-between items-center p-8 text-slate-400 uppercase tracking-widest text-sm font-semibold">
         <div className="flex items-center gap-2">
            <Radio className="w-5 h-5 animate-pulse text-blue-400" />
-           <span>Chromecast • BandCast Source</span>
+           <span>Chromecast • BCast Source</span>
         </div>
         <div>
           {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

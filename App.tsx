@@ -93,7 +93,7 @@ const App: React.FC = () => {
               <div 
                 onClick={() => setIsPopupOpen(!isPopupOpen)}
                 className={`p-1.5 rounded-full cursor-pointer transition-colors ${isPopupOpen ? 'bg-blue-100 text-blue-600' : 'hover:bg-slate-100 text-slate-600'}`}
-                title="BandCast"
+                title="BCast"
               >
                  <Cast className="w-4 h-4" />
               </div>

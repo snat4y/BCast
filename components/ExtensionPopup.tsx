@@ -18,7 +18,7 @@ const ExtensionPopup: React.FC<ExtensionPopupProps> = ({ onCast, isOpen, onClose
            <div className="bg-gradient-to-br from-blue-500 to-cyan-400 w-6 h-6 rounded flex items-center justify-center">
              <Cast className="w-3 h-3 text-white" />
            </div>
-           <span className="font-semibold text-slate-700 text-sm">BandCast</span>
+           <span className="font-semibold text-slate-700 text-sm">BCast</span>
          </div>
          <div className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">BETA</div>
       </div>
