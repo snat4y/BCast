@@ -1,30 +1,37 @@
-
 // This script runs in the MAIN WORLD (injected by content script)
 // It has access to window.chrome.cast and the Cast SDK
 
+interface Window {
+  cast: any;
+  chrome: any;
+  __onGCastApiAvailable: (isAvailable: boolean) => void;
+}
+
 // ---------------------------------------------------------
 const CAST_APP_ID = '298333F8'; 
-// ---------------------------------------------------------
-
 const CUSTOM_NAMESPACE = 'urn:x-cast:com.bcast.data';
+// ---------------------------------------------------------
 
 console.log('[BCast] Bridge Loaded');
 
 // 1. Load the Google Cast SDK dynamically
 const loadCastSdk = () => {
+  if (document.querySelector('script[src*="cast_framework.js"]')) {
+      console.log('[BCast] SDK script already present');
+      return;
+  }
   const script = document.createElement('script');
   script.src = '//www.gstatic.com/cast/sdk/libs/sender/v1/cast_framework.js?loadCastFramework=1';
   document.head.appendChild(script);
 };
 
 // 2. Initialize Cast Context when SDK is ready
-window['__onGCastApiAvailable'] = (isAvailable: boolean) => {
-  if (isAvailable) {
+window.__onGCastApiAvailable = (isAvailable: boolean) => {
+  if (isAvailable && window.cast) {
     try {
-      // @ts-ignore
-      cast.framework.CastContext.getInstance().setOptions({
+      window.cast.framework.CastContext.getInstance().setOptions({
         receiverApplicationId: CAST_APP_ID,
-        autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+        autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
       });
       console.log('[BCast] SDK Initialized with ID:', CAST_APP_ID);
     } catch (e) {
@@ -47,9 +54,14 @@ window.addEventListener('message', async (event) => {
 });
 
 async function startCasting(albumData: any) {
+  // FIX: Access cast via window to avoid ReferenceError
+  if (!window.cast || !window.cast.framework) {
+      alert("Cast SDK is loading... please wait a moment and try again.");
+      return;
+  }
+
   try {
-    // @ts-ignore
-    const context = cast.framework.CastContext.getInstance();
+    const context = window.cast.framework.CastContext.getInstance();
     
     // Request session (opens the Cast dialog)
     await context.requestSession();
@@ -72,7 +84,7 @@ async function startCasting(albumData: any) {
     if (String(error).includes('cancel')) {
         // User cancelled dialog
     } else {
-        alert("Cast failed. Check console for details. Ensure App ID is registered.");
+        // Optional: alert user if it's a real error
     }
   }
 }
