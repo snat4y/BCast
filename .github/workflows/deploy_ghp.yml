@@ -21,7 +21,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.5.
+          version: latest
       - name: install Nodejs
         uses: actions/setup-node@v3
         with:
