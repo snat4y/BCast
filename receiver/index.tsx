@@ -13,13 +13,14 @@ const ReceiverApp = () => {
   const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
-    // Initialize Google Cast Receiver Context
     // @ts-ignore
     const context = cast.framework.CastReceiverContext.getInstance();
+    
+    // Configure options to prevent timeout
     // @ts-ignore
-    const playerManager = context.getPlayerManager();
+    const options = new cast.framework.CastReceiverOptions();
+    options.disableIdleTimeout = true; // Keep receiver open indefinitely
 
-    // Listen for custom messages from the Sender (Extension) containing Album Data
     const CUSTOM_CHANNEL = 'urn:x-cast:com.bcast.data';
     
     context.addCustomMessageListener(CUSTOM_CHANNEL, (event: any) => {
@@ -30,9 +31,8 @@ const ReceiverApp = () => {
       }
     });
 
-    context.start();
+    context.start(options);
     
-    // For development visualization only:
     console.log("Receiver App Started. Waiting for Cast connection...");
   }, []);
 

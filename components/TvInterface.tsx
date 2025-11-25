@@ -35,16 +35,24 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
       const track = album.tracks[currentTrackIndex];
       if (track?.streamUrl) {
         const currentSrc = audioRef.current.src;
-        if (currentSrc !== track.streamUrl) {
+        // Only update src if it changed to prevent reloading on every render
+        // Note: Browsers sometimes add the base URL, so we check endsWith or strict match if full URL
+        if (currentSrc !== track.streamUrl && !currentSrc.endsWith(track.streamUrl)) {
           audioRef.current.src = track.streamUrl;
           audioRef.current.load();
         }
         
         if (isPlaying) {
-          audioRef.current.play().catch(e => console.error("Playback failed", e));
+          const playPromise = audioRef.current.play();
+          if (playPromise !== undefined) {
+             playPromise.catch(e => console.error("Playback failed", e));
+          }
         } else {
           audioRef.current.pause();
         }
+      } else {
+        // If no stream URL, pause.
+        audioRef.current.pause();
       }
     }
   }, [currentTrackIndex, isPlaying, album]);
@@ -67,7 +75,6 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
     if (trackListRef.current) {
       const activeElement = trackListRef.current.children[currentTrackIndex] as HTMLElement;
       if (activeElement) {
-        // Reduced scroll margin for tighter view
         activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
@@ -94,19 +101,23 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
 
   const currentTrack = album.tracks[currentTrackIndex];
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+  
+  // 24h Clock
+  const timeString = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 
   return (
     <div className="fixed inset-0 z-50 bg-[#0f172a] text-white flex flex-col overflow-hidden font-sans select-none">
       <style>{`
         @keyframes marquee {
-          0% { transform: translateX(100%); }
+          0% { transform: translateX(0); }
+          20% { transform: translateX(0); }
           100% { transform: translateX(-100%); }
         }
         .animate-marquee {
           display: inline-block;
           white-space: nowrap;
-          animation: marquee 15s linear infinite;
-          padding-right: 2rem;
+          animation: marquee 12s linear infinite;
+          min-width: 100%;
         }
         /* Custom Scrollbar for tracklist */
         .custom-scrollbar::-webkit-scrollbar {
@@ -124,9 +135,14 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
       {/* Hidden Audio Player */}
       <audio
         ref={audioRef}
+        crossOrigin="anonymous"
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         onEnded={onNext}
+        onError={(e) => {
+            const err = e.currentTarget.error;
+            console.error("Audio Error:", err?.code, err?.message, e.currentTarget.src);
+        }}
       />
 
       {/* Dynamic Background */}
@@ -134,7 +150,7 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
         className="absolute inset-0 opacity-30 bg-cover bg-center blur-3xl scale-125 transition-all duration-1000"
         style={{ backgroundImage: `url(${album.coverUrl})` }}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-[#0f172a]/80 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-[#0f172a]/90 to-transparent" />
 
       {/* Header */}
       <div className="relative z-10 h-[10vh] flex items-center justify-between px-[5vw]">
@@ -144,17 +160,20 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
            </div>
            <span className="text-xl font-bold tracking-widest text-slate-300">BCAST</span>
         </div>
-        <div className="text-2xl font-light text-slate-400">
-          {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        <div className="text-[3vh] font-light text-slate-400 font-mono tracking-widest">
+          {timeString}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="relative z-10 h-[75vh] flex px-[5vw] gap-[4vw]">
+      {/* Main Content: Two Columns */}
+      <div className="relative z-10 flex flex-1 px-[5vw] pt-[2vh] gap-[5vw] overflow-hidden">
         
-        {/* Left: Album Art & Info */}
-        <div className="w-[42vw] flex flex-col justify-center">
-          <div className={`relative aspect-square w-full rounded-2xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border-4 border-slate-800/50 mb-[3vh] transition-transform duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-90'}`}>
+        {/* Left Column: Artwork (Fixed Square, Top Aligned) */}
+        <div className="flex-shrink-0">
+          <div 
+            className={`relative rounded-xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border-4 border-slate-800/50 transition-all duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-90'}`}
+            style={{ width: '50vh', height: '50vh' }}
+          >
             <img 
               src={album.coverUrl} 
               alt={album.title} 
@@ -166,26 +185,23 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
               </div>
             )}
           </div>
-          
-          <div className="space-y-[0.5vh]">
-             <h1 className="text-[4vh] font-bold leading-tight line-clamp-2 text-white">{album.title}</h1>
-             <h2 className="text-[2.5vh] text-blue-400 font-medium">{album.artist}</h2>
-             <div className="flex flex-wrap gap-2 pt-[1vh]">
-                {album.tags?.slice(0, 4).map(tag => (
-                  <span key={tag} className="px-2 py-0.5 bg-white/10 rounded-md text-[1.2vh] font-bold uppercase tracking-wide text-slate-400">
-                    {tag}
-                  </span>
-                ))}
-             </div>
-          </div>
         </div>
 
-        {/* Right: Tracklist */}
-        <div className="flex-1 flex flex-col justify-center h-full overflow-hidden">
-           <div className="bg-black/30 backdrop-blur-md rounded-3xl border border-white/10 h-[90%] flex flex-col overflow-hidden">
+        {/* Right Column: Info & Tracklist */}
+        <div className="flex-1 flex flex-col min-w-0 h-full pb-[2vh]">
+           
+           {/* Album Info (Top) */}
+           <div className="mb-[3vh]">
+             <h1 className="text-[5vh] font-bold leading-none text-white truncate drop-shadow-md mb-[1vh]">{album.title}</h1>
+             <h2 className="text-[3.5vh] text-blue-400 font-medium truncate">{album.artist}</h2>
+           </div>
+
+           {/* Tracklist Container (Fill Remaining) */}
+           <div className="flex-1 bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 flex flex-col overflow-hidden relative mb-[15vh]"> 
+              {/* Added bottom margin to avoid footer overlap if any, but footer is separate container below */}
               <div className="p-[2vh] border-b border-white/5 flex justify-between items-end bg-white/5">
-                 <h3 className="text-[2vh] font-semibold text-slate-200">Tracklist</h3>
-                 <span className="text-[1.8vh] text-slate-500">{currentTrackIndex + 1} / {album.tracks.length}</span>
+                 <h3 className="text-[2vh] font-semibold text-slate-200 uppercase tracking-wider">Tracks</h3>
+                 <span className="text-[1.8vh] text-slate-500 font-mono">{currentTrackIndex + 1} / {album.tracks.length}</span>
               </div>
               
               <div ref={trackListRef} className="flex-1 overflow-y-auto p-[1vh] scroll-smooth custom-scrollbar">
@@ -194,9 +210,9 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
                    return (
                     <div 
                       key={idx}
-                      className={`flex items-center justify-between py-[0.8vh] px-[2vh] rounded-lg mb-[0.2vh] transition-all duration-200 ${
+                      className={`flex items-center justify-between py-[1vh] px-[2vh] rounded-lg mb-[0.2vh] transition-all duration-200 ${
                         isActive
-                          ? 'bg-white text-slate-900 shadow-lg scale-[1.01]' 
+                          ? 'bg-white text-slate-900 shadow-lg scale-[1.01] origin-left' 
                           : 'text-slate-400 hover:bg-white/5'
                       }`}
                     >
@@ -205,25 +221,25 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
                           {isActive && isPlaying ? (
                             <Music className="w-[2vh] h-[2vh] animate-bounce text-blue-600" />
                           ) : (
-                            <span className={`text-[1.8vh] font-mono ${isActive ? 'font-bold' : ''}`}>{idx + 1}</span>
+                            <span className={`text-[2vh] font-mono ${isActive ? 'font-bold' : ''}`}>{idx + 1}</span>
                           )}
                         </div>
-                        {/* Marquee for active track, truncate for others */}
+                        {/* Marquee for active track */}
                         <div className="flex-1 overflow-hidden relative">
                            {isActive ? (
                              <div className="w-full overflow-hidden whitespace-nowrap">
-                               <span className={`text-[2vh] font-bold ${track.title.length > 30 ? 'animate-marquee' : ''}`}>
+                               <span className={`text-[2.2vh] font-bold block ${track.title.length > 25 ? 'animate-marquee' : ''}`}>
                                  {track.title}
                                </span>
                              </div>
                            ) : (
-                             <span className="text-[1.8vh] font-medium truncate block">
+                             <span className="text-[2vh] font-medium truncate block">
                                {track.title}
                              </span>
                            )}
                         </div>
                       </div>
-                      <span className={`text-[1.8vh] font-mono flex-shrink-0 ${isActive ? 'text-slate-600' : ''}`}>
+                      <span className={`text-[2vh] font-mono flex-shrink-0 ${isActive ? 'text-slate-600' : ''}`}>
                         {track.duration}
                       </span>
                     </div>
@@ -234,21 +250,21 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
         </div>
       </div>
 
-      {/* Footer: Progress & Controls */}
-      <div className="relative z-10 h-[15vh] px-[5vw] flex flex-col justify-center">
+      {/* Footer: Progress & Controls (Fixed height at bottom) */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 h-[15vh] px-[5vw] bg-gradient-to-t from-[#0f172a] to-transparent flex flex-col justify-center">
          
          {/* Progress Bar */}
          <div className="flex items-center gap-[2vw] mb-[2vh]">
-            <span className="text-[1.8vh] font-mono text-slate-400 w-[5vw] text-right">
+            <span className="text-[2vh] font-mono text-slate-400 w-[6vw] text-right">
               {formatTime(currentTime)}
             </span>
-            <div className="flex-1 h-[1vh] bg-slate-800 rounded-full overflow-hidden">
+            <div className="flex-1 h-[1vh] bg-slate-800 rounded-full overflow-hidden backdrop-blur-sm border border-white/5">
               <div 
-                className="h-full bg-blue-500 rounded-full transition-all duration-200 ease-linear shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
+                className="h-full bg-blue-500 rounded-full transition-all duration-200 ease-linear shadow-[0_0_15px_rgba(59,130,246,0.6)]" 
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
-            <span className="text-[1.8vh] font-mono text-slate-400 w-[5vw]">
+            <span className="text-[2vh] font-mono text-slate-400 w-[6vw]">
               {formatTime(duration || 0)}
             </span>
          </div>
@@ -262,7 +278,7 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
          </div>
       </div>
 
-      {/* Volume Overlay - Increased Z-Index to stay on top */}
+      {/* Volume Overlay */}
       <div className={`absolute right-[5vw] top-[15vh] z-[100] bg-black/80 backdrop-blur-xl p-[2vh] rounded-2xl border border-white/20 transition-opacity duration-300 ${showVolumeUI ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
          <div className="w-[4vh] h-[30vh] bg-slate-800/50 rounded-full relative overflow-hidden flex flex-col justify-end">
             <div 
