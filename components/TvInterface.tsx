@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState, useLayoutEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Album } from '../types';
-import { Music, Radio, Volume2, Volume1, VolumeX, Play, Pause, SkipForward, SkipBack } from 'lucide-react';
+import { Music, Radio, Volume2, Volume1, VolumeX, Pause, Play, SkipForward, SkipBack } from 'lucide-react';
 
 interface TvInterfaceProps {
   album: Album | null;
@@ -11,50 +11,69 @@ interface TvInterfaceProps {
   onPrev: () => void;
   onTogglePlay: () => void;
   initialVolume?: number;
+  volume?: number; // External volume level (0-1)
+  onVolumeChange?: (newVolume: number) => void; // Request change to external volume
 }
 
 const MarqueeText = ({ text, isActive }: { text: string, isActive: boolean }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const [scrollAmount,FQScrollAmount] = useState(0);
+  const [duration, setDuration] = useState('0s');
+  const [distance, setDistance] = useState('0px');
 
-  useLayoutEffect(() => {
-    if (containerRef.current && textRef.current) {
-      const containerWidth = containerRef.current.clientWidth;
-      const textWidth = textRef.current.scrollWidth;
-      
-      const overflow = textWidth - containerWidth;
-      
-      if (overflow > 0) {
-        setIsOverflowing(true);
-        // Calculate duration: base 3s + 1s per 50px of scroll
-        // Slower is better for readability
-        setDuration(3 + overflow / 30); 
-        FQScrollAmount(overflow);
-      } else {
-        setIsOverflowing(false);
-        setDuration(0);
-        FQScrollAmount(0);
+  useEffect(() => {
+    const checkOverflow = () => {
+      if (containerRef.current && textRef.current) {
+        const containerWidth = containerRef.current.offsetWidth;
+        const textWidth = textRef.current.scrollWidth;
+        
+        // Use a small threshold to avoid jitter
+        if (textWidth > containerWidth + 1) {
+          setIsOverflowing(true);
+          const dist = textWidth - containerWidth + 20; // Scroll past + padding
+          setDistance(`-${dist}px`);
+          // Speed: 30 pixels per second
+          setDuration(`${Math.max(dist / 30, 5)}s`); 
+        } else {
+          setIsOverflowing(false);
+        }
       }
-    }
+    };
+
+    // Initial check
+    const timeoutId = setTimeout(checkOverflow, 100);
+
+    const resizeObserver = new ResizeObserver(() => {
+        checkOverflow();
+    });
+
+    if (containerRef.current) resizeObserver.observe(containerRef.current);
+    if (textRef.current) resizeObserver.observe(textRef.current);
+
+    return () => {
+        clearTimeout(timeoutId);
+        resizeObserver.disconnect();
+    };
   }, [text, isActive]);
 
-  const style = (isActive && isOverflowing) ? {
-    animationName: 'scroll-ping-pong',
-    animationDuration: `${duration}s`,
-    animationTimingFunction: 'linear',
-    animationIterationCount: 'infinite',
-    '--scroll-dest': `-${scrollAmount}px` // Negative because we translate left
-  } as React.CSSProperties : {};
-
   return (
-    <div ref={containerRef} className="w-full overflow-hidden whitespace-nowrap">
+    <div ref={containerRef} className="w-full overflow-hidden relative mask-linear-fade">
+      <style>{`
+        @keyframes marquee {
+          0%, 10% { transform: translateX(0); }
+          100% { transform: translateX(${distance}); }
+        }
+      `}</style>
       <span 
         ref={textRef} 
-        className="inline-block will-change-transform"
-        style={style}
+        className="inline-block whitespace-nowrap"
+        style={{
+          animation: (isActive && isOverflowing) 
+            ? `marquee ${duration} linear infinite alternate` 
+            : 'none',
+          willChange: 'transform'
+        }}
       >
         {text}
       </span>
@@ -70,137 +89,169 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
   onNext,
   onPrev,
   onTogglePlay,
-  initialVolume = 1
+  initialVolume = 1,
+  volume: externalVolume,
+  onVolumeChange
 }) => {
   const trackListRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [volume, setVolume] = useState(initialVolume);
+  const [internalVolume, setInternalVolume] = useState(initialVolume);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showVolumeUI, setShowVolumeUI] = useState(false);
   const volumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Audio Playback Logic
-  useEffect(() => {
-    if (audioRef.current && album) {
-      const track = album.tracks[currentTrackIndex];
-      if (track?.streamUrl) {
-        // Only change src if it's different to avoid reloading
-        // We decodeURIComponent because sometimes browser encodes the src attr
-        const currentSrc = decodeURIComponent(audioRef.current.src);
-        const newSrc = decodeURIComponent(track.streamUrl);
-        
-        // Handle case where src might be relative or absolute
-        if (!currentSrc.includes(newSrc)) {
-           audioRef.current.src = track.streamUrl;
-           audioRef.current.load();
-        }
-        
-        if (isPlaying) {
-          const playPromise = audioRef.current.play();
-          if (playPromise !== undefined) {
-             playPromise.catch(e => console.error("Playback failed", e));
-          }
-        } else {
-          audioRef.current.pause();
-        }
-      } else {
-        audioRef.current.pause();
-      }
-    }
-  }, [currentTrackIndex, isPlaying, album]);
+  const currentTrack = album?.tracks[currentTrackIndex];
 
-  // Set initial volume on audio element
+  // Determine if we are controlled externally (TV Receiver) or locally (Sender/Browser)
+  const isExternalControl = typeof externalVolume === 'number';
+  const effectiveVolume = isExternalControl ? externalVolume : internalVolume;
+
+  // --- AUDIO LOGIC ---
+
+  // Handle Track Source Changes Imperatively
+  useEffect(() => {
+    if (!audioRef.current || !currentTrack) return;
+
+    const audio = audioRef.current;
+
+    const loadAndPlay = async () => {
+      try {
+        // 1. Pause current playback
+        audio.pause();
+        
+        // 2. Set new source
+        audio.src = currentTrack.streamUrl || '';
+        audio.currentTime = 0;
+        setCurrentTime(0);
+
+        // 3. Load metadata
+        audio.load();
+
+        // 4. Resume if playing
+        if (isPlaying) {
+          await audio.play();
+        }
+      } catch (err) {
+        console.error("Audio Load Error:", err);
+      }
+    };
+
+    loadAndPlay();
+  }, [currentTrackIndex, currentTrack?.streamUrl]); // Re-run when track changes
+
+  // Handle Play/Pause Toggle
+  useEffect(() => {
+    if (!audioRef.current) return;
+    const audio = audioRef.current;
+
+    if (isPlaying) {
+      if (audio.paused) {
+        audio.play().catch(e => console.warn("Play interrupted:", e));
+      }
+    } else {
+      audio.pause();
+    }
+  }, [isPlaying]);
+
+  // Handle Volume
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.volume = volume;
+      // If controlled externally (e.g. Chromecast System Volume), we set the audio element 
+      // volume to 1.0 (max) and let the hardware/system volume handle the attenuation.
+      // Otherwise, we apply the volume gain to the element itself.
+      audioRef.current.volume = isExternalControl ? 1.0 : effectiveVolume;
     }
-  }, []);
+  }, [effectiveVolume, isExternalControl]);
 
-  // Volume Handler
+  // --- UI LOGIC ---
+
   const adjustVolume = (delta: number) => {
-    setVolume(prev => {
-      const newVol = Math.max(0, Math.min(1, prev + delta));
-      if (audioRef.current) audioRef.current.volume = newVol;
-      return newVol;
-    });
+    const newVol = Math.max(0, Math.min(1, effectiveVolume + delta));
+    const roundedVol = Math.round(newVol * 100) / 100; // Round to 2 decimal places
+
+    if (isExternalControl && onVolumeChange) {
+      onVolumeChange(roundedVol);
+    } else {
+      setInternalVolume(roundedVol);
+    }
     
     setShowVolumeUI(true);
     if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current);
     volumeTimeoutRef.current = setTimeout(() => setShowVolumeUI(false), 2000);
   };
 
-  // Scroll active track into view
+  // Auto-scroll tracklist without scrolling parent
   useEffect(() => {
     if (trackListRef.current) {
-      const activeElement = trackListRef.current.children[currentTrackIndex] as HTMLElement;
+      const activeElement = trackListRef.current.querySelector(`[data-track-index="${currentTrackIndex}"]`) as HTMLElement;
       if (activeElement) {
-        // Use scrollIntoView with block: 'nearest' to avoid jumping the whole list if unnecessary
-        // But 'center' is nice for TV UI.
-        activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // We use scrollTo on the container instead of scrollIntoView to prevent the 
+        // entire page/viewport from scrolling up when the list is at the bottom.
+        const container = trackListRef.current;
+        const offsetTop = activeElement.offsetTop;
+        const elHeight = activeElement.clientHeight;
+        const containerHeight = container.clientHeight;
+        
+        // Calculate the scroll position to center the element
+        const targetScroll = offsetTop - (containerHeight / 2) + (elHeight / 2);
+        
+        container.scrollTo({ 
+          top: targetScroll, 
+          behavior: 'smooth' 
+        });
       }
     }
   }, [currentTrackIndex]);
 
-  // Remote Control (Keyboard) Support
+  // Keyboard Controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent default scrolling for Space/Arrows
+      // Prevent default scrolling behavior for arrow keys and space
       if([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
       }
 
       switch (e.key) {
         case 'Escape': onClose(); break;
-        case ' ': // Spacebar
+        case ' ': 
         case 'Enter': onTogglePlay(); break;
         case 'ArrowRight': onNext(); break;
         case 'ArrowLeft': onPrev(); break;
-        case 'ArrowUp': adjustVolume(0.1); break;
-        case 'ArrowDown': adjustVolume(-0.1); break;
+        case 'ArrowUp': adjustVolume(0.01); break; // 1% Granularity
+        case 'ArrowDown': adjustVolume(-0.01); break; // 1% Granularity
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, onNext, onPrev, onTogglePlay]);
+  }, [onClose, onNext, onPrev, onTogglePlay, effectiveVolume, isExternalControl]);
 
   if (!album) return null;
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
-  
-  // 24h Clock
   const timeString = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 
   return (
     <div className="fixed inset-0 z-50 bg-[#0f172a] text-white flex flex-col overflow-hidden font-sans select-none">
       <style>{`
-        @keyframes scroll-ping-pong {
-          0%, 20% { transform: translateX(0); }
-          50%, 70% { transform: translateX(var(--scroll-dest)); }
-          100% { transform: translateX(0); }
-        }
-        /* Custom Scrollbar for tracklist */
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: rgba(255,255,255,0.05);
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: rgba(255,255,255,0.2);
-            border-radius: 3px;
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+        .mask-linear-fade {
+            mask-image: linear-gradient(to right, black 85%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
         }
       `}</style>
 
+      {/* Persistent Audio Element */}
       <audio
         ref={audioRef}
-        crossOrigin="anonymous"
+        preload="auto"
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         onEnded={onNext}
         onError={(e) => {
-            const err = e.currentTarget.error;
-            console.error("Audio Error:", err?.code, err?.message, e.currentTarget.src);
+          console.error("Audio Playback Error", e.currentTarget.error);
         }}
       />
 
@@ -227,11 +278,11 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
       {/* Main Content */}
       <div className="relative z-10 flex flex-1 px-[5vw] pt-[2vh] gap-[5vw] overflow-hidden min-h-0">
         
-        {/* Left Column: Artwork - Maximized size */}
-        <div className="flex-shrink-0 h-full flex flex-col justify-start">
+        {/* Left Column: Artwork */}
+        <div className="flex-shrink-0 h-full flex flex-col justify-start pb-[15vh]">
           <div 
             className={`relative rounded-xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border-4 border-slate-800/50 transition-all duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-90'}`}
-            style={{ width: '60vh', height: '60vh' }}
+            style={{ width: '50vh', height: '50vh' }}
           >
             <img 
               src={album.coverUrl} 
@@ -244,17 +295,23 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
               </div>
             )}
           </div>
+          
+          <div className="mt-[4vh] max-w-[50vh]">
+             <h1 className="text-[4vh] font-bold leading-tight text-white mb-[1vh] line-clamp-2">{album.title}</h1>
+             <h2 className="text-[3vh] text-blue-400 font-medium truncate">{album.artist}</h2>
+             {album.tags && (
+               <div className="flex flex-wrap gap-2 mt-4 opacity-60">
+                 {album.tags.slice(0,3).map(tag => (
+                   <span key={tag} className="text-xs border border-white/30 px-2 py-1 rounded-full">{tag}</span>
+                 ))}
+               </div>
+             )}
+          </div>
         </div>
 
-        {/* Right Column: Info & Tracklist */}
-        <div className="flex-1 flex flex-col min-w-0 h-full pb-[18vh]"> {/* Added padding bottom to account for footer overlap visually if needed, though layout is flex */}
-           
-           <div className="mb-[3vh] flex-shrink-0">
-             <h1 className="text-[5vh] font-bold leading-none text-white truncate drop-shadow-md mb-[1vh]">{album.title}</h1>
-             <h2 className="text-[3.5vh] text-blue-400 font-medium truncate">{album.artist}</h2>
-           </div>
-
-           <div className="flex-1 bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 flex flex-col overflow-hidden relative min-h-0"> 
+        {/* Right Column: Tracklist */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 pb-[18vh]"> 
+           <div className="flex-1 bg-black/20 backdrop-blur-md rounded-2xl border border-white/10 flex flex-col overflow-hidden relative"> 
               <div className="p-[2vh] border-b border-white/5 flex justify-between items-end bg-white/5 flex-shrink-0">
                  <h3 className="text-[2vh] font-semibold text-slate-200 uppercase tracking-wider">Tracks</h3>
                  <span className="text-[1.8vh] text-slate-500 font-mono">{currentTrackIndex + 1} / {album.tracks.length}</span>
@@ -266,11 +323,7 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
                    return (
                     <div 
                       key={idx}
-                      onClick={() => {
-                        // Optional: Allow clicking tracks if mouse is used
-                        // We would need to pass a callback props for jumping to track, 
-                        // but for now, this just exists structurally.
-                      }}
+                      data-track-index={idx}
                       className={`flex items-center justify-between py-[1.5vh] px-[2vh] rounded-lg mb-[0.2vh] transition-all duration-200 ${
                         isActive
                           ? 'bg-white text-slate-900 shadow-lg scale-[1.01] origin-left' 
@@ -285,11 +338,10 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
                             <span className={`text-[2vh] font-mono ${isActive ? 'font-bold' : ''}`}>{idx + 1}</span>
                           )}
                         </div>
-                        <div className="flex-1 overflow-hidden relative w-full">
+                        
+                        <div className="flex-1 overflow-hidden relative w-full min-w-0">
                            {isActive ? (
-                             <div className="w-full text-[2.2vh] font-bold block">
-                               <MarqueeText text={track.title} isActive={true} />
-                             </div>
+                             <MarqueeText text={track.title} isActive={true} />
                            ) : (
                              <span className="text-[2vh] font-medium truncate block">
                                {track.title}
@@ -338,13 +390,13 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
          <div className="w-[4vh] h-[30vh] bg-slate-800/50 rounded-full relative overflow-hidden flex flex-col justify-end">
             <div 
               className="w-full bg-blue-500 transition-all duration-100 box-border border-t border-white/50"
-              style={{ height: `${volume * 100}%` }}
+              style={{ height: `${effectiveVolume * 100}%` }}
             />
          </div>
          <div className="mt-[2vh] flex justify-center text-white">
-            {volume === 0 ? <VolumeX size="2.5vh" /> : volume < 0.5 ? <Volume1 size="2.5vh" /> : <Volume2 size="2.5vh" />}
+            {effectiveVolume === 0 ? <VolumeX size="2.5vh" /> : effectiveVolume < 0.5 ? <Volume1 size="2.5vh" /> : <Volume2 size="2.5vh" />}
          </div>
-         <div className="text-center text-[1.5vh] font-mono mt-1 text-blue-300">{Math.round(volume * 100)}%</div>
+         <div className="text-center text-[1.5vh] font-mono mt-1 text-blue-300">{Math.round(effectiveVolume * 100)}%</div>
       </div>
 
     </div>

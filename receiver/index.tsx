@@ -11,16 +11,19 @@ const ReceiverApp = () => {
   const [album, setAlbum] = useState<Album | null>(null);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [initialVolume, setInitialVolume] = useState(1);
+  const [systemVolume, setSystemVolume] = useState(1);
 
   useEffect(() => {
     // @ts-ignore
     const context = cast.framework.CastReceiverContext.getInstance();
     
+    // @ts-ignore
+    const playerManager = context.getPlayerManager();
+    
     // Get initial system volume
-    const systemVolume = context.getSystemVolume();
-    if (systemVolume) {
-        setInitialVolume(systemVolume.level);
+    const initialSystemVolume = context.getSystemVolume();
+    if (initialSystemVolume) {
+        setSystemVolume(initialSystemVolume.level);
     }
 
     // Configure options to prevent timeout
@@ -38,10 +41,35 @@ const ReceiverApp = () => {
       }
     });
 
+    // Listen to System Volume Changes (from Phone or Remote)
+    // @ts-ignore
+    const onSystemVolumeChanged = (event) => {
+        // We can trust getSystemVolume() to be current
+        const vol = context.getSystemVolume();
+        if (vol) {
+          setSystemVolume(vol.level);
+        }
+    };
+
+    // @ts-ignore
+    context.addEventListener(cast.framework.system.EventType.SYSTEM_VOLUME_CHANGED, onSystemVolumeChanged);
+
     context.start(options);
     
     console.log("Receiver App Started. Waiting for Cast connection...");
+
+    return () => {
+       // @ts-ignore
+       context.removeEventListener(cast.framework.system.EventType.SYSTEM_VOLUME_CHANGED, onSystemVolumeChanged);
+    };
   }, []);
+
+  const handleVolumeChange = (newVol: number) => {
+      // @ts-ignore
+      const context = cast.framework.CastReceiverContext.getInstance();
+      context.setSystemVolumeLevel(newVol);
+      setSystemVolume(newVol); // Optimistic update
+  };
 
   if (!album) {
     return (
@@ -59,7 +87,8 @@ const ReceiverApp = () => {
       album={album}
       currentTrackIndex={currentTrackIndex}
       isPlaying={isPlaying}
-      initialVolume={initialVolume}
+      volume={systemVolume} // Pass system volume to UI
+      onVolumeChange={handleVolumeChange} // Allow UI to control system volume
       onClose={() => setAlbum(null)}
       onNext={() => setCurrentTrackIndex(i => (i + 1) % album.tracks.length)}
       onPrev={() => setCurrentTrackIndex(i => (i - 1 + album.tracks.length) % album.tracks.length)}

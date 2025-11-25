@@ -23,6 +23,10 @@ export const scrapeBandcampData = (): Album | null => {
     const trackRows = document.querySelectorAll('#track_table .track_row_view');
     const tracks: Track[] = [];
 
+    // Fallback URL for development/demo (FMA links can be flaky with redirects/CORS)
+    // Using SoundHelix for reliable MP3 testing
+    const FALLBACK_STREAM_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+
     trackRows.forEach((row, index) => {
       const titleEl = row.querySelector('.track-title');
       const timeEl = row.querySelector('.time');
@@ -33,7 +37,7 @@ export const scrapeBandcampData = (): Album | null => {
           duration: timeEl?.textContent?.trim() || "--:--",
           position: index + 1,
           // Add dummy stream for local simulation if not running on real Bandcamp
-          streamUrl: "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/ccCommunity/Chad_Crouch/Arps/Chad_Crouch_-_Elips.mp3"
+          streamUrl: FALLBACK_STREAM_URL
         });
       }
     });
@@ -44,7 +48,7 @@ export const scrapeBandcampData = (): Album | null => {
          title: title,
          duration: document.querySelector('.time_total')?.textContent?.trim() || "3:00",
          position: 1,
-         streamUrl: "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/ccCommunity/Chad_Crouch/Arps/Chad_Crouch_-_Elips.mp3"
+         streamUrl: FALLBACK_STREAM_URL
        });
     }
 
