@@ -44,6 +44,7 @@ const App: React.FC = () => {
         album={scrapedAlbum}
         currentTrackIndex={currentTrackIndex}
         isPlaying={isPlaying}
+        initialVolume={1}
         onClose={() => setViewMode(ViewMode.SENDER)}
         onNext={handleNext}
         onPrev={handlePrev}

@@ -11,11 +11,18 @@ const ReceiverApp = () => {
   const [album, setAlbum] = useState<Album | null>(null);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [initialVolume, setInitialVolume] = useState(1);
 
   useEffect(() => {
     // @ts-ignore
     const context = cast.framework.CastReceiverContext.getInstance();
     
+    // Get initial system volume
+    const systemVolume = context.getSystemVolume();
+    if (systemVolume) {
+        setInitialVolume(systemVolume.level);
+    }
+
     // Configure options to prevent timeout
     // @ts-ignore
     const options = new cast.framework.CastReceiverOptions();
@@ -52,6 +59,7 @@ const ReceiverApp = () => {
       album={album}
       currentTrackIndex={currentTrackIndex}
       isPlaying={isPlaying}
+      initialVolume={initialVolume}
       onClose={() => setAlbum(null)}
       onNext={() => setCurrentTrackIndex(i => (i + 1) % album.tracks.length)}
       onPrev={() => setCurrentTrackIndex(i => (i - 1 + album.tracks.length) % album.tracks.length)}

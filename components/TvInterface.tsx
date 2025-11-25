@@ -10,7 +10,51 @@ interface TvInterfaceProps {
   onNext: () => void;
   onPrev: () => void;
   onTogglePlay: () => void;
+  initialVolume?: number;
 }
+
+const MarqueeText = ({ text, isActive }: { text: string, isActive: boolean }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [overflowAmount, setOverflowAmount] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    if (containerRef.current && textRef.current) {
+      const containerWidth = containerRef.current.clientWidth;
+      const textWidth = textRef.current.scrollWidth;
+      
+      if (textWidth > containerWidth) {
+        setOverflowAmount(containerWidth - textWidth);
+        // Calculate duration: base 2s + 1s per 50px of scroll
+        setDuration(2 + Math.abs(containerWidth - textWidth) / 30);
+      } else {
+        setOverflowAmount(0);
+        setDuration(0);
+      }
+    }
+  }, [text, isActive]);
+
+  const style = (isActive && overflowAmount < 0) ? {
+    animationName: 'scroll-ping-pong',
+    animationDuration: `${duration}s`,
+    animationTimingFunction: 'linear',
+    animationIterationCount: 'infinite',
+    '--scroll-dest': `${overflowAmount}px`
+  } as React.CSSProperties : {};
+
+  return (
+    <div ref={containerRef} className="w-full overflow-hidden whitespace-nowrap">
+      <span 
+        ref={textRef} 
+        className="inline-block"
+        style={style}
+      >
+        {text}
+      </span>
+    </div>
+  );
+};
 
 const TvInterface: React.FC<TvInterfaceProps> = ({ 
   album, 
@@ -19,11 +63,12 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
   onClose,
   onNext,
   onPrev,
-  onTogglePlay
+  onTogglePlay,
+  initialVolume = 1
 }) => {
   const trackListRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [volume, setVolume] = useState(1);
+  const [volume, setVolume] = useState(initialVolume);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showVolumeUI, setShowVolumeUI] = useState(false);
@@ -35,8 +80,6 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
       const track = album.tracks[currentTrackIndex];
       if (track?.streamUrl) {
         const currentSrc = audioRef.current.src;
-        // Only update src if it changed to prevent reloading on every render
-        // Note: Browsers sometimes add the base URL, so we check endsWith or strict match if full URL
         if (currentSrc !== track.streamUrl && !currentSrc.endsWith(track.streamUrl)) {
           audioRef.current.src = track.streamUrl;
           audioRef.current.load();
@@ -51,11 +94,17 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
           audioRef.current.pause();
         }
       } else {
-        // If no stream URL, pause.
         audioRef.current.pause();
       }
     }
   }, [currentTrackIndex, isPlaying, album]);
+
+  // Set initial volume on audio element
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, []);
 
   // Volume Handler
   const adjustVolume = (delta: number) => {
@@ -99,7 +148,6 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
 
   if (!album) return null;
 
-  const currentTrack = album.tracks[currentTrackIndex];
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   
   // 24h Clock
@@ -108,16 +156,10 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-[#0f172a] text-white flex flex-col overflow-hidden font-sans select-none">
       <style>{`
-        @keyframes marquee {
-          0% { transform: translateX(0); }
-          20% { transform: translateX(0); }
-          100% { transform: translateX(-100%); }
-        }
-        .animate-marquee {
-          display: inline-block;
-          white-space: nowrap;
-          animation: marquee 12s linear infinite;
-          min-width: 100%;
+        @keyframes scroll-ping-pong {
+          0%, 15% { transform: translateX(0); }
+          50%, 65% { transform: translateX(var(--scroll-dest)); }
+          100% { transform: translateX(0); }
         }
         /* Custom Scrollbar for tracklist */
         .custom-scrollbar::-webkit-scrollbar {
@@ -132,7 +174,6 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
         }
       `}</style>
 
-      {/* Hidden Audio Player */}
       <audio
         ref={audioRef}
         crossOrigin="anonymous"
@@ -165,14 +206,14 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
         </div>
       </div>
 
-      {/* Main Content: Two Columns */}
+      {/* Main Content */}
       <div className="relative z-10 flex flex-1 px-[5vw] pt-[2vh] gap-[5vw] overflow-hidden">
         
-        {/* Left Column: Artwork (Fixed Square, Top Aligned) */}
+        {/* Left Column: Artwork - Maximized size */}
         <div className="flex-shrink-0">
           <div 
             className={`relative rounded-xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border-4 border-slate-800/50 transition-all duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-90'}`}
-            style={{ width: '50vh', height: '50vh' }}
+            style={{ width: '65vh', height: '65vh' }}
           >
             <img 
               src={album.coverUrl} 
@@ -190,15 +231,12 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
         {/* Right Column: Info & Tracklist */}
         <div className="flex-1 flex flex-col min-w-0 h-full pb-[2vh]">
            
-           {/* Album Info (Top) */}
            <div className="mb-[3vh]">
              <h1 className="text-[5vh] font-bold leading-none text-white truncate drop-shadow-md mb-[1vh]">{album.title}</h1>
              <h2 className="text-[3.5vh] text-blue-400 font-medium truncate">{album.artist}</h2>
            </div>
 
-           {/* Tracklist Container (Fill Remaining) */}
            <div className="flex-1 bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 flex flex-col overflow-hidden relative mb-[15vh]"> 
-              {/* Added bottom margin to avoid footer overlap if any, but footer is separate container below */}
               <div className="p-[2vh] border-b border-white/5 flex justify-between items-end bg-white/5">
                  <h3 className="text-[2vh] font-semibold text-slate-200 uppercase tracking-wider">Tracks</h3>
                  <span className="text-[1.8vh] text-slate-500 font-mono">{currentTrackIndex + 1} / {album.tracks.length}</span>
@@ -224,13 +262,10 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
                             <span className={`text-[2vh] font-mono ${isActive ? 'font-bold' : ''}`}>{idx + 1}</span>
                           )}
                         </div>
-                        {/* Marquee for active track */}
                         <div className="flex-1 overflow-hidden relative">
                            {isActive ? (
-                             <div className="w-full overflow-hidden whitespace-nowrap">
-                               <span className={`text-[2.2vh] font-bold block ${track.title.length > 25 ? 'animate-marquee' : ''}`}>
-                                 {track.title}
-                               </span>
+                             <div className="w-full text-[2.2vh] font-bold block">
+                               <MarqueeText text={track.title} isActive={true} />
                              </div>
                            ) : (
                              <span className="text-[2vh] font-medium truncate block">
@@ -250,10 +285,8 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
         </div>
       </div>
 
-      {/* Footer: Progress & Controls (Fixed height at bottom) */}
+      {/* Footer: Progress & Controls */}
       <div className="absolute bottom-0 left-0 right-0 z-20 h-[15vh] px-[5vw] bg-gradient-to-t from-[#0f172a] to-transparent flex flex-col justify-center">
-         
-         {/* Progress Bar */}
          <div className="flex items-center gap-[2vw] mb-[2vh]">
             <span className="text-[2vh] font-mono text-slate-400 w-[6vw] text-right">
               {formatTime(currentTime)}
@@ -269,7 +302,6 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
             </span>
          </div>
 
-         {/* Controls Hint */}
          <div className="flex justify-center items-center gap-[4vw] text-slate-500 text-[1.5vh] uppercase tracking-widest">
             <ControlHint icon={<Play size="1.5vh"/>} label="Play/Pause" kbd="Space" />
             <ControlHint icon={<SkipBack size="1.5vh"/>} label="Prev" kbd="←" />
