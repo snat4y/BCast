@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import { Album, Track } from '../types';
-import { Play, Pause, FastForward, Rewind, Music, Radio } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Album } from '../types';
+import { Music, Radio, Volume2, Volume1, VolumeX, Play, Pause, SkipForward, SkipBack } from 'lucide-react';
 
 interface TvInterfaceProps {
   album: Album | null;
@@ -22,6 +22,46 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
   onTogglePlay
 }) => {
   const trackListRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [volume, setVolume] = useState(1);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [showVolumeUI, setShowVolumeUI] = useState(false);
+  const volumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Audio Playback Effect
+  useEffect(() => {
+    if (audioRef.current && album) {
+      const track = album.tracks[currentTrackIndex];
+      if (track?.streamUrl) {
+        // Only update source if it's different to prevent reloading on play/pause
+        const currentSrc = audioRef.current.src;
+        if (currentSrc !== track.streamUrl) {
+          audioRef.current.src = track.streamUrl;
+          audioRef.current.load();
+        }
+        
+        if (isPlaying) {
+          audioRef.current.play().catch(e => console.error("Playback failed", e));
+        } else {
+          audioRef.current.pause();
+        }
+      }
+    }
+  }, [currentTrackIndex, isPlaying, album]);
+
+  // Volume Handler
+  const adjustVolume = (delta: number) => {
+    setVolume(prev => {
+      const newVol = Math.max(0, Math.min(1, prev + delta));
+      if (audioRef.current) audioRef.current.volume = newVol;
+      return newVol;
+    });
+    
+    setShowVolumeUI(true);
+    if (volumeTimeoutRef.current) clearTimeout(volumeTimeoutRef.current);
+    volumeTimeoutRef.current = setTimeout(() => setShowVolumeUI(false), 2000);
+  };
 
   // Scroll active track into view
   useEffect(() => {
@@ -33,23 +73,17 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
     }
   }, [currentTrackIndex]);
 
-  // Simulate Remote Control (Keyboard Support)
+  // Remote Control (Keyboard) Support
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
-        case 'Escape':
-          onClose();
-          break;
+        case 'Escape': onClose(); break;
         case ' ': // Spacebar
-        case 'Enter':
-          onTogglePlay();
-          break;
-        case 'ArrowRight':
-          onNext();
-          break;
-        case 'ArrowLeft':
-          onPrev();
-          break;
+        case 'Enter': onTogglePlay(); break;
+        case 'ArrowRight': onNext(); break;
+        case 'ArrowLeft': onPrev(); break;
+        case 'ArrowUp': adjustVolume(0.1); break;
+        case 'ArrowDown': adjustVolume(-0.1); break;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -59,44 +93,64 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
   if (!album) return null;
 
   const currentTrack = album.tracks[currentTrackIndex];
+  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900 text-white flex flex-col overflow-hidden">
-      {/* Background Gradient/Blur */}
+    <div className="fixed inset-0 z-50 bg-[#0f172a] text-white flex flex-col overflow-hidden font-sans select-none">
+      
+      {/* Hidden Audio Player */}
+      <audio
+        ref={audioRef}
+        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+        onEnded={onNext}
+      />
+
+      {/* Dynamic Background */}
       <div 
-        className="absolute inset-0 opacity-20 bg-cover bg-center blur-3xl scale-110"
+        className="absolute inset-0 opacity-30 bg-cover bg-center blur-3xl scale-125 transition-all duration-1000"
         style={{ backgroundImage: `url(${album.coverUrl})` }}
       />
-      
-      {/* Top Bar: TV Status */}
-      <div className="relative z-10 flex justify-between items-center p-8 text-slate-400 uppercase tracking-widest text-sm font-semibold">
-        <div className="flex items-center gap-2">
-           <Radio className="w-5 h-5 animate-pulse text-blue-400" />
-           <span>Chromecast • BCast Source</span>
+      <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-[#0f172a]/80 to-transparent" />
+
+      {/* Header */}
+      <div className="relative z-10 h-[10vh] flex items-center justify-between px-[5vw]">
+        <div className="flex items-center gap-3">
+           <div className="bg-blue-600 p-2 rounded-full animate-pulse">
+             <Radio className="w-6 h-6 text-white" />
+           </div>
+           <span className="text-xl font-bold tracking-widest text-slate-300">BCAST</span>
         </div>
-        <div>
+        <div className="text-2xl font-light text-slate-400">
           {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="relative z-10 flex flex-1 p-12 gap-16 items-center">
+      {/* Main Content: Split 40/60 */}
+      <div className="relative z-10 h-[75vh] flex px-[5vw] gap-[5vw]">
         
-        {/* Left: Album Art & Now Playing */}
-        <div className="w-1/3 flex flex-col gap-8">
-          <div className="aspect-square w-full rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] border-4 border-slate-800">
+        {/* Left: Album Art & Info */}
+        <div className="w-[35vw] flex flex-col justify-center">
+          <div className={`relative aspect-square w-full rounded-2xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border-4 border-slate-800/50 mb-[4vh] transition-transform duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-90'}`}>
             <img 
               src={album.coverUrl} 
               alt={album.title} 
               className="w-full h-full object-cover"
             />
+            {/* Playback Status Overlay */}
+            {!isPlaying && (
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-sm">
+                <Pause className="w-24 h-24 text-white opacity-80" />
+              </div>
+            )}
           </div>
-          <div className="space-y-2">
-             <h1 className="text-4xl font-bold leading-tight line-clamp-2">{album.title}</h1>
-             <h2 className="text-2xl text-slate-400 font-medium">{album.artist}</h2>
-             <div className="flex gap-2 mt-2">
-                {album.tags?.slice(0, 3).map(tag => (
-                  <span key={tag} className="px-3 py-1 bg-white/10 rounded-full text-xs font-bold uppercase tracking-wide text-blue-300">
+          
+          <div className="space-y-[1vh]">
+             <h1 className="text-[4vh] font-bold leading-tight line-clamp-2 text-white">{album.title}</h1>
+             <h2 className="text-[3vh] text-blue-400 font-medium">{album.artist}</h2>
+             <div className="flex gap-2 pt-[1vh]">
+                {album.tags?.slice(0, 4).map(tag => (
+                  <span key={tag} className="px-3 py-1 bg-white/10 rounded-full text-[1.5vh] font-bold uppercase tracking-wide text-slate-300">
                     {tag}
                   </span>
                 ))}
@@ -105,70 +159,103 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
         </div>
 
         {/* Right: Tracklist */}
-        <div className="flex-1 h-[60vh] flex flex-col bg-black/20 rounded-3xl p-8 backdrop-blur-sm border border-white/5">
-           <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
-              <h3 className="text-xl font-semibold text-slate-300">Tracklist</h3>
-              <span className="text-sm text-slate-500">{album.tracks.length} tracks</span>
-           </div>
-           
-           <div ref={trackListRef} className="flex-1 overflow-y-auto pr-4 space-y-1">
-              {album.tracks.map((track, idx) => (
-                <div 
-                  key={idx}
-                  className={`flex items-center justify-between p-4 rounded-xl transition-all duration-300 ${
-                    idx === currentTrackIndex 
-                      ? 'bg-white text-black scale-100 shadow-lg' 
-                      : 'text-slate-400 hover:bg-white/5'
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <span className={`w-6 text-center text-sm font-mono ${idx === currentTrackIndex ? 'text-blue-600 font-bold' : 'text-slate-600'}`}>
-                      {idx === currentTrackIndex ? <Music className="w-4 h-4 animate-bounce mx-auto"/> : idx + 1}
-                    </span>
-                    <span className="font-medium text-lg">{track.title}</span>
-                  </div>
-                  <span className={`text-sm font-mono ${idx === currentTrackIndex ? 'text-black' : 'text-slate-600'}`}>
-                    {track.duration}
-                  </span>
-                </div>
-              ))}
+        <div className="flex-1 flex flex-col justify-center h-full overflow-hidden">
+           <div className="bg-black/30 backdrop-blur-md rounded-3xl border border-white/10 h-[85%] flex flex-col overflow-hidden">
+              <div className="p-[3vh] border-b border-white/5 flex justify-between items-end">
+                 <h3 className="text-[2.5vh] font-semibold text-slate-200">Tracklist</h3>
+                 <span className="text-[2vh] text-slate-500">{currentTrackIndex + 1} / {album.tracks.length}</span>
+              </div>
+              
+              <div ref={trackListRef} className="flex-1 overflow-y-auto p-[2vh] scroll-smooth">
+                 {album.tracks.map((track, idx) => {
+                   const isActive = idx === currentTrackIndex;
+                   return (
+                    <div 
+                      key={idx}
+                      className={`flex items-center justify-between p-[2vh] rounded-xl mb-2 transition-all duration-300 ${
+                        isActive
+                          ? 'bg-white text-slate-900 shadow-lg scale-[1.02]' 
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-[2vh]">
+                        <div className="w-[3vh] text-center">
+                          {isActive && isPlaying ? (
+                            <Music className="w-[2.5vh] h-[2.5vh] animate-bounce text-blue-600" />
+                          ) : (
+                            <span className={`text-[2vh] font-mono ${isActive ? 'font-bold' : ''}`}>{idx + 1}</span>
+                          )}
+                        </div>
+                        <span className={`text-[2.2vh] font-medium truncate max-w-[25vw]`}>{track.title}</span>
+                      </div>
+                      <span className={`text-[2vh] font-mono ${isActive ? 'text-slate-600' : ''}`}>
+                        {track.duration}
+                      </span>
+                    </div>
+                   );
+                 })}
+              </div>
            </div>
         </div>
       </div>
 
-      {/* Bottom: Progress Bar & Simulated Controls Hint */}
-      <div className="relative z-10 p-12 pt-0">
-        <div className="flex items-center gap-8">
-           {/* Progress Line */}
-           <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
-             <div 
-               className={`h-full bg-blue-500 rounded-full transition-all duration-1000 ease-linear ${isPlaying ? 'w-2/3' : 'w-1/3 opacity-50'}`} 
-             />
-           </div>
-           
-           <div className="flex items-center gap-2 text-slate-400 text-sm">
-             <span>{currentTrack.duration}</span>
-           </div>
-        </div>
+      {/* Footer: Progress & Controls */}
+      <div className="relative z-10 h-[15vh] px-[5vw] flex flex-col justify-center">
+         
+         {/* Progress Bar */}
+         <div className="flex items-center gap-[2vw] mb-[2vh]">
+            <span className="text-[1.8vh] font-mono text-slate-400 w-[5vw] text-right">
+              {formatTime(currentTime)}
+            </span>
+            <div className="flex-1 h-[1vh] bg-slate-800 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-blue-500 rounded-full transition-all duration-200 ease-linear shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <span className="text-[1.8vh] font-mono text-slate-400 w-[5vw]">
+              {formatTime(duration || 0)}
+            </span>
+         </div>
 
-        {/* On-screen Remote Hints */}
-        <div className="mt-8 flex justify-center gap-12 text-slate-500 text-xs uppercase tracking-widest">
-           <div className="flex items-center gap-2">
-             <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-sans">SPACE</kbd>
-             <span>Play/Pause</span>
-           </div>
-           <div className="flex items-center gap-2">
-             <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-sans">← / →</kbd>
-             <span>Seek Track</span>
-           </div>
-           <div className="flex items-center gap-2">
-             <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-sans">ESC</kbd>
-             <span>Exit TV Mode</span>
-           </div>
-        </div>
+         {/* Controls Hint */}
+         <div className="flex justify-center items-center gap-[4vw] text-slate-500 text-[1.5vh] uppercase tracking-widest">
+            <ControlHint icon={<Play size="1.5vh"/>} label="Play/Pause" kbd="Space" />
+            <ControlHint icon={<SkipBack size="1.5vh"/>} label="Prev" kbd="←" />
+            <ControlHint icon={<SkipForward size="1.5vh"/>} label="Next" kbd="→" />
+            <ControlHint icon={<Volume2 size="1.5vh"/>} label="Volume" kbd="↑ ↓" />
+         </div>
       </div>
+
+      {/* Volume Overlay */}
+      <div className={`absolute right-[5vw] top-[12vh] bg-black/60 backdrop-blur-xl p-[2vh] rounded-2xl border border-white/10 transition-opacity duration-500 ${showVolumeUI ? 'opacity-100' : 'opacity-0'}`}>
+         <div className="w-[4vh] h-[30vh] bg-slate-800 rounded-full relative overflow-hidden flex flex-col justify-end">
+            <div 
+              className="w-full bg-white transition-all duration-100"
+              style={{ height: `${volume * 100}%` }}
+            />
+         </div>
+         <div className="mt-[2vh] flex justify-center text-white">
+            {volume === 0 ? <VolumeX /> : volume < 0.5 ? <Volume1 /> : <Volume2 />}
+         </div>
+      </div>
+
     </div>
   );
+};
+
+const ControlHint = ({ icon, label, kbd }: { icon: React.ReactNode, label: string, kbd: string }) => (
+  <div className="flex items-center gap-2">
+    <div className="p-1 bg-slate-800 rounded-md border border-slate-700">{icon}</div>
+    <span>{label} <span className="text-slate-600">[{kbd}]</span></span>
+  </div>
+);
+
+const formatTime = (seconds: number) => {
+  if (!seconds) return "0:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
 export default TvInterface;

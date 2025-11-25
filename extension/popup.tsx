@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import ExtensionPopup from '../components/ExtensionPopup';
 import '../src/index.css'; // Import Tailwind CSS locally
@@ -25,7 +25,7 @@ const PopupEntry = () => {
   };
 
   return (
-    <div className="w-[300px] h-auto min-h-[200px] bg-white">
+    <div className="w-[320px] h-[400px] bg-white overflow-hidden">
       <ExtensionPopup 
         isOpen={isOpen} 
         onClose={() => window.close()} 

@@ -1,3 +1,4 @@
+
 import { Album, Track } from '../types';
 
 export const scrapeBandcampData = (): Album | null => {
@@ -30,7 +31,9 @@ export const scrapeBandcampData = (): Album | null => {
         tracks.push({
           title: titleEl.textContent?.trim() || `Track ${index + 1}`,
           duration: timeEl?.textContent?.trim() || "--:--",
-          position: index + 1
+          position: index + 1,
+          // Add dummy stream for local simulation if not running on real Bandcamp
+          streamUrl: "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/ccCommunity/Chad_Crouch/Arps/Chad_Crouch_-_Elips.mp3"
         });
       }
     });
@@ -40,7 +43,8 @@ export const scrapeBandcampData = (): Album | null => {
        tracks.push({
          title: title,
          duration: document.querySelector('.time_total')?.textContent?.trim() || "3:00",
-         position: 1
+         position: 1,
+         streamUrl: "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/ccCommunity/Chad_Crouch/Arps/Chad_Crouch_-_Elips.mp3"
        });
     }
 

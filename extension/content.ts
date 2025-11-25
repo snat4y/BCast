@@ -16,7 +16,10 @@ const injectScript = () => {
     (document.head || document.documentElement).appendChild(script);
     console.log('[BCast] Bridge script injected');
   } catch (e) {
-    console.error('[BCast] Injection failed:', e);
+    // Suppress context invalidated errors during reload
+    if (!e.message?.includes('Extension context invalidated')) {
+       console.error('[BCast] Injection failed:', e);
+    }
   }
 };
 
@@ -34,7 +37,6 @@ const triggerCast = () => {
       }, '*');
     } else {
       console.warn('[BCast] No album data found');
-      // Optional: alert user, but be careful not to spam if triggered automatically
       if (document.visibilityState === 'visible') {
          alert('Could not find album data on this page.');
       }
@@ -43,15 +45,11 @@ const triggerCast = () => {
 
 // 2. Listen for messages from the Popup
 chrome.runtime.onMessage.addListener((request: any, sender: any, sendResponse: any) => {
-  if (request.action === "GET_ALBUM_DATA") {
-    // Legacy support if needed
-    const albumData = scrapeBandcampData();
-    sendResponse({ success: !!albumData, data: albumData });
-  } else if (request.action === "TRIGGER_CAST") {
-    // New handler for Popup trigger
+  if (request.action === "TRIGGER_CAST") {
     triggerCast();
     sendResponse({ status: "ok" });
   }
+  return true;
 });
 
 // 3. Inject Floating Cast Button
@@ -59,8 +57,12 @@ const injectFloatingButton = () => {
   if (!document.getElementById('name-section') && !document.querySelector('.track_list')) {
       return; 
   }
+  
+  // Prevent duplicate buttons
+  if (document.getElementById('bcast-floating-btn')) return;
 
   const btn = document.createElement('div');
+  btn.id = 'bcast-floating-btn';
   btn.style.cssText = `
     position: fixed;
     bottom: 24px;
