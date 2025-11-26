@@ -278,11 +278,10 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
       {/* Main Content */}
       <div className="relative z-10 flex flex-1 px-[5vw] pt-[2vh] gap-[5vw] overflow-hidden min-h-0">
         
-        {/* Left Column: Artwork */}
-        <div className="flex-shrink-0 h-full flex flex-col justify-start pb-[15vh]">
+        {/* Left Column: Artwork - Anchored Top Left, Max Height within area */}
+        <div className="flex-shrink-0 h-full pb-[18vh]">
           <div 
-            className={`relative rounded-xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border-4 border-slate-800/50 transition-all duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-90'}`}
-            style={{ width: '50vh', height: '50vh' }}
+            className={`relative aspect-square h-full rounded-xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border-4 border-slate-800/50 transition-all duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-90'}`}
           >
             <img 
               src={album.coverUrl} 
@@ -291,26 +290,22 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
             />
             {!isPlaying && (
               <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-sm">
-                <Pause className="w-24 h-24 text-white opacity-80" />
+                <Pause className="w-[25%] h-[25%] text-white opacity-80" />
               </div>
             )}
           </div>
-          
-          <div className="mt-[4vh] max-w-[50vh]">
-             <h1 className="text-[4vh] font-bold leading-tight text-white mb-[1vh] line-clamp-2">{album.title}</h1>
-             <h2 className="text-[3vh] text-blue-400 font-medium truncate">{album.artist}</h2>
-             {album.tags && (
-               <div className="flex flex-wrap gap-2 mt-4 opacity-60">
-                 {album.tags.slice(0,3).map(tag => (
-                   <span key={tag} className="text-xs border border-white/30 px-2 py-1 rounded-full">{tag}</span>
-                 ))}
-               </div>
-             )}
-          </div>
         </div>
 
-        {/* Right Column: Tracklist */}
+        {/* Right Column: Album Info & Tracklist */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 pb-[18vh]"> 
+           
+           {/* Info Moved Here */}
+           <div className="mb-[3vh] flex-shrink-0">
+             <h1 className="text-[5vh] font-bold leading-tight text-white mb-[1vh] line-clamp-2">{album.title}</h1>
+             <h2 className="text-[3vh] text-blue-400 font-medium truncate">{album.artist}</h2>
+           </div>
+
+           {/* Tracklist Container */}
            <div className="flex-1 bg-black/20 backdrop-blur-md rounded-2xl border border-white/10 flex flex-col overflow-hidden relative"> 
               <div className="p-[2vh] border-b border-white/5 flex justify-between items-end bg-white/5 flex-shrink-0">
                  <h3 className="text-[2vh] font-semibold text-slate-200 uppercase tracking-wider">Tracks</h3>
