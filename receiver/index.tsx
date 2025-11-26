@@ -36,7 +36,17 @@ const ReceiverApp = () => {
     context.addCustomMessageListener(CUSTOM_CHANNEL, (event: any) => {
       const data = event.data;
       if (data.type === 'LOAD_ALBUM') {
-        setAlbum(data.payload);
+        const albumData = data.payload;
+        
+        // Find first playable track (one with a streamUrl)
+        let startIndex = 0;
+        if (albumData.tracks && albumData.tracks.length > 0) {
+            startIndex = albumData.tracks.findIndex((t: any) => t.streamUrl);
+            if (startIndex === -1) startIndex = 0; // Fallback if nothing is playable
+        }
+
+        setAlbum(albumData);
+        setCurrentTrackIndex(startIndex);
         setIsPlaying(true);
       }
     });
@@ -71,6 +81,36 @@ const ReceiverApp = () => {
       setSystemVolume(newVol); // Optimistic update
   };
 
+  const handleNext = () => {
+    if (!album) return;
+    let nextIdx = currentTrackIndex;
+    let attempts = 0;
+    // Loop until we find a track with a streamUrl or we've cycled through all
+    do {
+        nextIdx = (nextIdx + 1) % album.tracks.length;
+        attempts++;
+    } while (!album.tracks[nextIdx].streamUrl && attempts < album.tracks.length);
+
+    if (attempts < album.tracks.length) {
+        setCurrentTrackIndex(nextIdx);
+    }
+  };
+
+  const handlePrev = () => {
+    if (!album) return;
+    let prevIdx = currentTrackIndex;
+    let attempts = 0;
+    // Loop until we find a track with a streamUrl
+    do {
+        prevIdx = (prevIdx - 1 + album.tracks.length) % album.tracks.length;
+        attempts++;
+    } while (!album.tracks[prevIdx].streamUrl && attempts < album.tracks.length);
+
+    if (attempts < album.tracks.length) {
+        setCurrentTrackIndex(prevIdx);
+    }
+  };
+
   if (!album) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-slate-900 text-white">
@@ -90,8 +130,8 @@ const ReceiverApp = () => {
       volume={systemVolume} // Pass system volume to UI
       onVolumeChange={handleVolumeChange} // Allow UI to control system volume
       onClose={() => setAlbum(null)}
-      onNext={() => setCurrentTrackIndex(i => (i + 1) % album.tracks.length)}
-      onPrev={() => setCurrentTrackIndex(i => (i - 1 + album.tracks.length) % album.tracks.length)}
+      onNext={handleNext}
+      onPrev={handlePrev}
       onTogglePlay={() => setIsPlaying(!isPlaying)}
     />
   );

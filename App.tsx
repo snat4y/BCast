@@ -18,8 +18,16 @@ const App: React.FC = () => {
     if (data) {
       setScrapedAlbum(data);
       setViewMode(ViewMode.TV_RECEIVER);
+      
+      // Find first playable track
+      let startIndex = 0;
+      if (data.tracks && data.tracks.length > 0) {
+          startIndex = data.tracks.findIndex((t: any) => t.streamUrl);
+          if (startIndex === -1) startIndex = 0;
+      }
+      
+      setCurrentTrackIndex(startIndex);
       setIsPlaying(true);
-      setCurrentTrackIndex(0);
     } else {
       alert("Could not detect album data on this page.");
     }
@@ -28,13 +36,31 @@ const App: React.FC = () => {
   // TV Interface Callbacks
   const handleNext = () => {
     if (scrapedAlbum) {
-      setCurrentTrackIndex(prev => (prev + 1) % scrapedAlbum.tracks.length);
+        let nextIdx = currentTrackIndex;
+        let attempts = 0;
+        do {
+            nextIdx = (nextIdx + 1) % scrapedAlbum.tracks.length;
+            attempts++;
+        } while (!scrapedAlbum.tracks[nextIdx].streamUrl && attempts < scrapedAlbum.tracks.length);
+        
+        if (attempts < scrapedAlbum.tracks.length) {
+            setCurrentTrackIndex(nextIdx);
+        }
     }
   };
 
   const handlePrev = () => {
     if (scrapedAlbum) {
-      setCurrentTrackIndex(prev => (prev - 1 + scrapedAlbum.tracks.length) % scrapedAlbum.tracks.length);
+        let prevIdx = currentTrackIndex;
+        let attempts = 0;
+        do {
+            prevIdx = (prevIdx - 1 + scrapedAlbum.tracks.length) % scrapedAlbum.tracks.length;
+            attempts++;
+        } while (!scrapedAlbum.tracks[prevIdx].streamUrl && attempts < scrapedAlbum.tracks.length);
+        
+        if (attempts < scrapedAlbum.tracks.length) {
+            setCurrentTrackIndex(prevIdx);
+        }
     }
   };
 

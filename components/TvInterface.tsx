@@ -113,6 +113,9 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
 
+    // Safety: don't attempt to play if no stream (e.g. unreleased track)
+    if (!currentTrack.streamUrl) return;
+
     const audio = audioRef.current;
 
     const loadAndPlay = async () => {
@@ -146,7 +149,7 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
     const audio = audioRef.current;
 
     if (isPlaying) {
-      if (audio.paused) {
+      if (audio.paused && audio.src) {
         audio.play().catch(e => console.warn("Play interrupted:", e));
       }
     } else {
@@ -276,10 +279,10 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
       </div>
 
       {/* Main Content */}
-      <div className="relative z-10 flex flex-1 px-[5vw] pt-[2vh] gap-[5vw] overflow-hidden min-h-0">
+      <div className="relative z-10 flex flex-1 px-[5vw] pt-[2vh] pb-[18vh] gap-[5vw] overflow-hidden min-h-0 items-start">
         
         {/* Left Column: Artwork - Anchored Top Left, Max Height within area */}
-        <div className="flex-shrink-0 h-full pb-[18vh]">
+        <div className="flex-shrink-0 h-full">
           <div 
             className={`relative aspect-square h-full rounded-xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border-4 border-slate-800/50 transition-all duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-90'}`}
           >
@@ -297,12 +300,12 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
         </div>
 
         {/* Right Column: Album Info & Tracklist */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-0 pb-[18vh]"> 
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 h-full"> 
            
-           {/* Info Moved Here */}
-           <div className="mb-[3vh] flex-shrink-0">
+           {/* Info Block */}
+           <div className="mb-[4vh] flex-shrink-0">
              <h1 className="text-[5vh] font-bold leading-tight text-white mb-[1vh] line-clamp-2">{album.title}</h1>
-             <h2 className="text-[3vh] text-blue-400 font-medium truncate">{album.artist}</h2>
+             <h2 className="text-[3.5vh] text-blue-400 font-medium truncate">{album.artist}</h2>
            </div>
 
            {/* Tracklist Container */}
@@ -315,6 +318,8 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
               <div ref={trackListRef} className="flex-1 overflow-y-auto p-[1vh] scroll-smooth custom-scrollbar">
                  {album.tracks.map((track, idx) => {
                    const isActive = idx === currentTrackIndex;
+                   const isPlayable = !!track.streamUrl;
+                   
                    return (
                     <div 
                       key={idx}
@@ -322,7 +327,9 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
                       className={`flex items-center justify-between py-[1.5vh] px-[2vh] rounded-lg mb-[0.2vh] transition-all duration-200 ${
                         isActive
                           ? 'bg-white text-slate-900 shadow-lg scale-[1.01] origin-left' 
-                          : 'text-slate-400 hover:bg-white/5'
+                          : isPlayable
+                            ? 'text-slate-400 hover:bg-white/5'
+                            : 'text-slate-600 opacity-50 cursor-not-allowed'
                       }`}
                     >
                       <div className="flex items-center gap-[2vh] overflow-hidden flex-1 mr-4">

@@ -88,7 +88,9 @@ const enrichWithStreamUrls = (albumData: any) => {
           // We rely on index here for simplicity, but could fuzzy match title.
           const bcTrack = tralbum.trackinfo[index];
           
-          let streamUrl = track.streamUrl;
+          // STRICTLY use TralbumData. If file is missing, it's not playable (e.g. pre-order).
+          // We override any fallback from the scraper.
+          let streamUrl = null; 
           
           if (bcTrack && bcTrack.file) {
              // Prefer 128kbps MP3 (standard stream)
