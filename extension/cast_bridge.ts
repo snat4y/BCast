@@ -84,12 +84,10 @@ const enrichWithStreamUrls = (albumData: any) => {
        
        albumData.tracks = albumData.tracks.map((track: any, index: number) => {
           // Bandcamp's trackinfo array usually matches the visual tracklist order
-          // However, sometimes indices offset if there are hidden tracks. 
-          // We rely on index here for simplicity, but could fuzzy match title.
           const bcTrack = tralbum.trackinfo[index];
           
-          // STRICTLY use TralbumData. If file is missing, it's not playable (e.g. pre-order).
-          // We override any fallback from the scraper.
+          // STRICTLY use TralbumData. 
+          // If bcTrack.file is null/undefined (e.g. pre-order), force streamUrl to null.
           let streamUrl = null; 
           
           if (bcTrack && bcTrack.file) {

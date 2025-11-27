@@ -16,6 +16,11 @@ const App: React.FC = () => {
   const handleCast = () => {
     const data = scrapeBandcampData();
     if (data) {
+      // DEMO: Manually mark the 2nd track (index 1) as unavailable to demonstrate UI state
+      if (data.tracks.length > 1) {
+          data.tracks[1].streamUrl = undefined; 
+      }
+
       setScrapedAlbum(data);
       setViewMode(ViewMode.TV_RECEIVER);
       
@@ -27,7 +32,7 @@ const App: React.FC = () => {
       }
       
       setCurrentTrackIndex(startIndex);
-      setIsPlaying(true);
+      setIsPlaying(!!data.tracks[startIndex]?.streamUrl);
     } else {
       alert("Could not detect album data on this page.");
     }
@@ -43,7 +48,7 @@ const App: React.FC = () => {
             attempts++;
         } while (!scrapedAlbum.tracks[nextIdx].streamUrl && attempts < scrapedAlbum.tracks.length);
         
-        if (attempts < scrapedAlbum.tracks.length) {
+        if (attempts < scrapedAlbum.tracks.length && scrapedAlbum.tracks[nextIdx].streamUrl) {
             setCurrentTrackIndex(nextIdx);
         }
     }
@@ -58,7 +63,7 @@ const App: React.FC = () => {
             attempts++;
         } while (!scrapedAlbum.tracks[prevIdx].streamUrl && attempts < scrapedAlbum.tracks.length);
         
-        if (attempts < scrapedAlbum.tracks.length) {
+        if (attempts < scrapedAlbum.tracks.length && scrapedAlbum.tracks[prevIdx].streamUrl) {
             setCurrentTrackIndex(prevIdx);
         }
     }

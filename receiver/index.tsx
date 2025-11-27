@@ -42,12 +42,13 @@ const ReceiverApp = () => {
         let startIndex = 0;
         if (albumData.tracks && albumData.tracks.length > 0) {
             startIndex = albumData.tracks.findIndex((t: any) => t.streamUrl);
-            if (startIndex === -1) startIndex = 0; // Fallback if nothing is playable
+            if (startIndex === -1) startIndex = 0; // Fallback even if nothing is playable
         }
 
         setAlbum(albumData);
         setCurrentTrackIndex(startIndex);
-        setIsPlaying(true);
+        // Only auto-play if we found a playable track
+        setIsPlaying(albumData.tracks[startIndex]?.streamUrl ? true : false);
       }
     });
 
@@ -91,8 +92,9 @@ const ReceiverApp = () => {
         attempts++;
     } while (!album.tracks[nextIdx].streamUrl && attempts < album.tracks.length);
 
-    if (attempts < album.tracks.length) {
+    if (attempts < album.tracks.length && album.tracks[nextIdx].streamUrl) {
         setCurrentTrackIndex(nextIdx);
+        setIsPlaying(true);
     }
   };
 
@@ -106,8 +108,9 @@ const ReceiverApp = () => {
         attempts++;
     } while (!album.tracks[prevIdx].streamUrl && attempts < album.tracks.length);
 
-    if (attempts < album.tracks.length) {
+    if (attempts < album.tracks.length && album.tracks[prevIdx].streamUrl) {
         setCurrentTrackIndex(prevIdx);
+        setIsPlaying(true);
     }
   };
 

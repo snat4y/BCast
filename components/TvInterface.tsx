@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Album } from '../types';
-import { Music, Radio, Volume2, Volume1, VolumeX, Pause, Play, SkipForward, SkipBack } from 'lucide-react';
+import { Music, Radio, Volume2, Volume1, VolumeX, Pause, Play, SkipForward, SkipBack, Disc } from 'lucide-react';
 
 interface TvInterfaceProps {
   album: Album | null;
@@ -31,10 +31,10 @@ const MarqueeText = ({ text, isActive }: { text: string, isActive: boolean }) =>
         // Use a small threshold to avoid jitter
         if (textWidth > containerWidth + 1) {
           setIsOverflowing(true);
-          const dist = textWidth - containerWidth + 20; // Scroll past + padding
-          setDistance(`-${dist}px`);
+          const scrollDist = textWidth - containerWidth + 20; // Scroll past + padding
+          setDistance(`-${scrollDist}px`);
           // Speed: 30 pixels per second
-          setDuration(`${Math.max(dist / 30, 5)}s`); 
+          setDuration(`${Math.max(scrollDist / 30, 5)}s`); 
         } else {
           setIsOverflowing(false);
         }
@@ -111,12 +111,14 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
 
   // Handle Track Source Changes Imperatively
   useEffect(() => {
-    if (!audioRef.current || !currentTrack) return;
-
-    // Safety: don't attempt to play if no stream (e.g. unreleased track)
-    if (!currentTrack.streamUrl) return;
-
+    if (!audioRef.current) return;
     const audio = audioRef.current;
+
+    // If no track or no stream URL (unavailable), don't play
+    if (!currentTrack || !currentTrack.streamUrl) {
+        audio.pause();
+        return;
+    }
 
     const loadAndPlay = async () => {
       try {
@@ -147,6 +149,8 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
   useEffect(() => {
     if (!audioRef.current) return;
     const audio = audioRef.current;
+    
+    if (!currentTrack?.streamUrl) return;
 
     if (isPlaying) {
       if (audio.paused && audio.src) {
@@ -155,7 +159,7 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
     } else {
       audio.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, currentTrack]);
 
   // Handle Volume
   useEffect(() => {
@@ -189,8 +193,6 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
     if (trackListRef.current) {
       const activeElement = trackListRef.current.querySelector(`[data-track-index="${currentTrackIndex}"]`) as HTMLElement;
       if (activeElement) {
-        // We use scrollTo on the container instead of scrollIntoView to prevent the 
-        // entire page/viewport from scrolling up when the list is at the bottom.
         const container = trackListRef.current;
         const offsetTop = activeElement.offsetTop;
         const elHeight = activeElement.clientHeight;
@@ -260,59 +262,83 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
 
       {/* Dynamic Background */}
       <div 
-        className="absolute inset-0 opacity-30 bg-cover bg-center blur-3xl scale-125 transition-all duration-1000"
+        className="absolute inset-0 opacity-20 bg-cover bg-center blur-3xl scale-125 transition-all duration-1000"
         style={{ backgroundImage: `url(${album.coverUrl})` }}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-[#0f172a]/90 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-[#0f172a]/95 to-slate-900/80" />
 
       {/* Header */}
-      <div className="relative z-10 h-[10vh] flex items-center justify-between px-[5vw] flex-shrink-0">
+      <div className="relative z-10 h-[8vh] flex items-center justify-between px-[5vw] flex-shrink-0">
         <div className="flex items-center gap-3">
-           <div className="bg-blue-600 p-2 rounded-full animate-pulse">
-             <Radio className="w-6 h-6 text-white" />
+           <div className="bg-blue-600 p-1.5 rounded-lg">
+             <Radio className="w-5 h-5 text-white" />
            </div>
-           <span className="text-xl font-bold tracking-widest text-slate-300">BCAST</span>
+           <span className="text-lg font-bold tracking-widest text-slate-300">BCAST</span>
         </div>
-        <div className="text-[3vh] font-light text-slate-400 font-mono tracking-widest">
+        <div className="text-[2.5vh] font-light text-slate-400 font-mono tracking-widest">
           {timeString}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="relative z-10 flex flex-1 px-[5vw] pt-[2vh] pb-[18vh] gap-[5vw] overflow-hidden min-h-0 items-start">
+      {/* Main Content Area */}
+      {/* Anchored top-left, gap between cols, padding for footer */}
+      <div className="relative z-10 flex flex-1 px-[5vw] pt-[2vh] pb-[16vh] gap-[4vw] overflow-hidden items-start h-full">
         
-        {/* Left Column: Artwork - Anchored Top Left, Max Height within area */}
-        <div className="flex-shrink-0 h-full">
+        {/* Left Column: Artwork 
+            - Flex shrink 0 prevents squishing
+            - h-full makes it fill vertical space available in parent
+            - aspect-square enforces 1:1 ratio based on height
+        */}
+        <div className="flex-shrink-0 h-full aspect-square">
           <div 
-            className={`relative aspect-square h-full rounded-xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border-4 border-slate-800/50 transition-all duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-90'}`}
+            className={`relative w-full h-full rounded-xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border border-slate-700/50 bg-slate-900 transition-all duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-90'}`}
           >
             <img 
               src={album.coverUrl} 
               alt={album.title} 
               className="w-full h-full object-cover"
             />
-            {!isPlaying && (
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-sm">
-                <Pause className="w-[25%] h-[25%] text-white opacity-80" />
+            {/* Overlay if paused */}
+            {!isPlaying && currentTrack?.streamUrl && (
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center backdrop-blur-[2px]">
+                <Pause className="w-[20%] h-[20%] text-white opacity-80" />
               </div>
+            )}
+            {/* Overlay if unavailable */}
+            {!currentTrack?.streamUrl && (
+               <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                  <span className="bg-red-500/20 text-red-200 px-4 py-2 rounded-full border border-red-500/30 text-[2vh] font-bold uppercase tracking-wider">
+                     Track Unavailable
+                  </span>
+               </div>
             )}
           </div>
         </div>
 
         {/* Right Column: Album Info & Tracklist */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-0 h-full"> 
+        <div className="flex-1 flex flex-col min-w-0 h-full"> 
            
-           {/* Info Block */}
-           <div className="mb-[4vh] flex-shrink-0">
-             <h1 className="text-[5vh] font-bold leading-tight text-white mb-[1vh] line-clamp-2">{album.title}</h1>
-             <h2 className="text-[3.5vh] text-blue-400 font-medium truncate">{album.artist}</h2>
+           {/* Info Block - Above Tracklist */}
+           <div className="mb-[3vh] flex-shrink-0">
+             <h1 className="text-[5vh] font-bold leading-none text-white mb-[1.5vh] line-clamp-2">{album.title}</h1>
+             <h2 className="text-[3.5vh] text-blue-400 font-medium truncate opacity-90">{album.artist}</h2>
+             {/* Metadata line (Release Date) - Tags removed */}
+             {album.releaseDate && (
+                <div className="mt-[1vh] text-[1.8vh] text-slate-500 font-mono uppercase tracking-widest">
+                    Released: {album.releaseDate}
+                </div>
+             )}
            </div>
 
            {/* Tracklist Container */}
-           <div className="flex-1 bg-black/20 backdrop-blur-md rounded-2xl border border-white/10 flex flex-col overflow-hidden relative"> 
-              <div className="p-[2vh] border-b border-white/5 flex justify-between items-end bg-white/5 flex-shrink-0">
-                 <h3 className="text-[2vh] font-semibold text-slate-200 uppercase tracking-wider">Tracks</h3>
-                 <span className="text-[1.8vh] text-slate-500 font-mono">{currentTrackIndex + 1} / {album.tracks.length}</span>
+           <div className="flex-1 bg-white/5 backdrop-blur-md rounded-xl border border-white/5 flex flex-col overflow-hidden relative shadow-2xl"> 
+              <div className="p-[2vh] border-b border-white/5 flex justify-between items-end bg-black/20 flex-shrink-0">
+                 <h3 className="text-[1.8vh] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <Disc className="w-4 h-4" /> Tracklist
+                 </h3>
+                 <span className="text-[1.8vh] text-slate-500 font-mono">
+                    {album.tracks.filter(t => t.streamUrl).length} Playable / {album.tracks.length} Total
+                 </span>
               </div>
               
               <div ref={trackListRef} className="flex-1 overflow-y-auto p-[1vh] scroll-smooth custom-scrollbar">
@@ -324,18 +350,18 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
                     <div 
                       key={idx}
                       data-track-index={idx}
-                      className={`flex items-center justify-between py-[1.5vh] px-[2vh] rounded-lg mb-[0.2vh] transition-all duration-200 ${
+                      className={`flex items-center justify-between py-[1.8vh] px-[2vh] rounded-lg mb-[0.2vh] transition-all duration-200 ${
                         isActive
-                          ? 'bg-white text-slate-900 shadow-lg scale-[1.01] origin-left' 
+                          ? 'bg-blue-600 text-white shadow-lg scale-[1.01] origin-left z-10' 
                           : isPlayable
-                            ? 'text-slate-400 hover:bg-white/5'
-                            : 'text-slate-600 opacity-50 cursor-not-allowed'
+                            ? 'text-slate-300 hover:bg-white/5'
+                            : 'text-slate-600 opacity-40' // Unavailable state
                       }`}
                     >
                       <div className="flex items-center gap-[2vh] overflow-hidden flex-1 mr-4">
-                        <div className="w-[3vh] flex-shrink-0 text-center">
+                        <div className="w-[3vh] flex-shrink-0 text-center flex justify-center">
                           {isActive && isPlaying ? (
-                            <Music className="w-[2vh] h-[2vh] animate-bounce text-blue-600" />
+                            <Music className="w-[2vh] h-[2vh] animate-bounce text-white" />
                           ) : (
                             <span className={`text-[2vh] font-mono ${isActive ? 'font-bold' : ''}`}>{idx + 1}</span>
                           )}
@@ -345,13 +371,14 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
                            {isActive ? (
                              <MarqueeText text={track.title} isActive={true} />
                            ) : (
-                             <span className="text-[2vh] font-medium truncate block">
-                               {track.title}
+                             <span className="text-[2.2vh] font-medium truncate block">
+                               {track.title} 
+                               {!isPlayable && <span className="ml-2 text-[1.5vh] border border-slate-600 rounded px-1.5 py-0.5 align-middle opacity-70">N/A</span>}
                              </span>
                            )}
                         </div>
                       </div>
-                      <span className={`text-[2vh] font-mono flex-shrink-0 ${isActive ? 'text-slate-600' : ''}`}>
+                      <span className={`text-[2vh] font-mono flex-shrink-0 ${isActive ? 'text-blue-100' : 'opacity-70'}`}>
                         {track.duration}
                       </span>
                     </div>
@@ -363,14 +390,14 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
       </div>
 
       {/* Footer: Progress & Controls */}
-      <div className="absolute bottom-0 left-0 right-0 z-20 h-[15vh] px-[5vw] bg-gradient-to-t from-[#0f172a] via-[#0f172a] to-transparent flex flex-col justify-center">
+      <div className="absolute bottom-0 left-0 right-0 z-20 h-[14vh] px-[5vw] bg-gradient-to-t from-[#0b1120] to-transparent flex flex-col justify-center">
          <div className="flex items-center gap-[2vw] mb-[2vh]">
             <span className="text-[2vh] font-mono text-slate-400 w-[6vw] text-right">
               {formatTime(currentTime)}
             </span>
-            <div className="flex-1 h-[1vh] bg-slate-800 rounded-full overflow-hidden backdrop-blur-sm border border-white/5">
+            <div className="flex-1 h-[0.8vh] bg-slate-800 rounded-full overflow-hidden backdrop-blur-sm border border-white/5">
               <div 
-                className="h-full bg-blue-500 rounded-full transition-all duration-200 ease-linear shadow-[0_0_15px_rgba(59,130,246,0.6)]" 
+                className="h-full bg-blue-500 rounded-full transition-all duration-200 ease-linear shadow-[0_0_15px_rgba(59,130,246,0.8)]" 
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
