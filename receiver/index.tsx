@@ -48,7 +48,7 @@ const ReceiverApp = () => {
         setAlbum(albumData);
         setCurrentTrackIndex(startIndex);
         // Only auto-play if we found a playable track
-        setIsPlaying(albumData.tracks[startIndex]?.streamUrl ? true : false);
+        setIsPlaying(!!albumData.tracks[startIndex]?.streamUrl);
       }
     });
 
@@ -92,9 +92,13 @@ const ReceiverApp = () => {
         attempts++;
     } while (!album.tracks[nextIdx].streamUrl && attempts < album.tracks.length);
 
+    // If we found a playable track, switch to it
     if (attempts < album.tracks.length && album.tracks[nextIdx].streamUrl) {
         setCurrentTrackIndex(nextIdx);
         setIsPlaying(true);
+    } else {
+        // Stop if nothing else is playable
+        setIsPlaying(false);
     }
   };
 

@@ -73,35 +73,49 @@ const loadCastSdk = () => {
   document.head.appendChild(script);
 };
 
-// Helper: Extract real stream URLs from Bandcamp's global data
-const enrichWithStreamUrls = (albumData: any) => {
+// Helper: Reconstruct tracklist from Bandcamp's authoritative TralbumData
+// This ensures we get ALL tracks (including unplayable/unreleased ones) with correct metadata.
+const reconstructTracks = (albumData: any) => {
   try {
     // @ts-ignore
     const tralbum = window.TralbumData;
     
     if (tralbum && tralbum.trackinfo) {
-       console.log('[BCast] Found Bandcamp TralbumData, extracting streams...');
+       console.log('[BCast] Found TralbumData. Reconstructing tracklist for accuracy...');
        
-       albumData.tracks = albumData.tracks.map((track: any, index: number) => {
-          // Bandcamp's trackinfo array usually matches the visual tracklist order
-          const bcTrack = tralbum.trackinfo[index];
+       const newTracks = tralbum.trackinfo.map((t: any, idx: number) => {
+          let streamUrl = null;
           
-          // STRICTLY use TralbumData. 
-          // If bcTrack.file is null/undefined (e.g. pre-order), force streamUrl to null.
-          let streamUrl = null; 
-          
-          if (bcTrack && bcTrack.file) {
-             // Prefer 128kbps MP3 (standard stream)
-             streamUrl = bcTrack.file['mp3-128'] || Object.values(bcTrack.file)[0];
+          if (t.file) {
+             // Prefer 128kbps MP3
+             streamUrl = t.file['mp3-128'] || Object.values(t.file)[0];
           }
 
-          return { ...track, streamUrl };
+          // Format duration (t.duration is usually seconds float)
+          let durationStr = "--:--";
+          if (t.duration) {
+              const mins = Math.floor(t.duration / 60);
+              const secs = Math.floor(t.duration % 60);
+              durationStr = `${mins}:${secs.toString().padStart(2, '0')}`;
+          }
+
+          return { 
+              title: t.title,
+              duration: durationStr,
+              position: t.track_num || (idx + 1),
+              streamUrl: streamUrl
+          };
        });
+
+       return {
+           ...albumData,
+           tracks: newTracks
+       };
     } else {
-      console.warn('[BCast] No TralbumData found. Streams might be missing.');
+      console.warn('[BCast] No TralbumData found. Using DOM-scraped data.');
     }
   } catch (e) {
-    console.error('[BCast] Error extracting streams:', e);
+    console.error('[BCast] Error reconstructing tracks:', e);
   }
   return albumData;
 };
@@ -113,7 +127,8 @@ window.addEventListener('message', async (event) => {
   }
 
   if (event.data.type === 'INIT_CAST') {
-    const enrichedData = enrichWithStreamUrls(event.data.payload);
+    // We ignore the tracks passed from scraper and rebuild them from source of truth
+    const enrichedData = reconstructTracks(event.data.payload);
     startCasting(enrichedData);
   }
 });

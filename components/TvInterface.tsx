@@ -281,17 +281,20 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
       </div>
 
       {/* Main Content Area */}
-      {/* Anchored top-left, gap between cols, padding for footer */}
+      {/* 
+          - Layout: Row (Artwork Left, Content Right)
+          - PaddingBottom: clears the footer area
+          - Gap: Space between artwork and tracklist
+      */}
       <div className="relative z-10 flex flex-1 px-[5vw] pt-[2vh] pb-[16vh] gap-[4vw] overflow-hidden items-start h-full">
         
         {/* Left Column: Artwork 
-            - Flex shrink 0 prevents squishing
-            - h-full makes it fill vertical space available in parent
-            - aspect-square enforces 1:1 ratio based on height
+            - h-full: fills the available height in the flex container
+            - aspect-square: enforces square ratio
         */}
-        <div className="flex-shrink-0 h-full aspect-square">
+        <div className="flex-shrink-0 h-full aspect-square relative">
           <div 
-            className={`relative w-full h-full rounded-xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border border-slate-700/50 bg-slate-900 transition-all duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-90'}`}
+            className={`w-full h-full rounded-xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.6)] border border-slate-700/50 bg-slate-900 transition-all duration-700 ${isPlaying ? 'scale-100' : 'scale-95 opacity-90'}`}
           >
             <img 
               src={album.coverUrl} 
@@ -318,11 +321,11 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
         {/* Right Column: Album Info & Tracklist */}
         <div className="flex-1 flex flex-col min-w-0 h-full"> 
            
-           {/* Info Block - Above Tracklist */}
+           {/* Info Block - Moved Above Tracklist */}
            <div className="mb-[3vh] flex-shrink-0">
              <h1 className="text-[5vh] font-bold leading-none text-white mb-[1.5vh] line-clamp-2">{album.title}</h1>
              <h2 className="text-[3.5vh] text-blue-400 font-medium truncate opacity-90">{album.artist}</h2>
-             {/* Metadata line (Release Date) - Tags removed */}
+             {/* Metadata line (Release Date) */}
              {album.releaseDate && (
                 <div className="mt-[1vh] text-[1.8vh] text-slate-500 font-mono uppercase tracking-widest">
                     Released: {album.releaseDate}
@@ -331,7 +334,7 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
            </div>
 
            {/* Tracklist Container */}
-           <div className="flex-1 bg-white/5 backdrop-blur-md rounded-xl border border-white/5 flex flex-col overflow-hidden relative shadow-2xl"> 
+           <div className="flex-1 bg-white/5 backdrop-blur-md rounded-xlyb border border-white/5 flex flex-col overflow-hidden relative shadow-2xl rounded-xl"> 
               <div className="p-[2vh] border-b border-white/5 flex justify-between items-end bg-black/20 flex-shrink-0">
                  <h3 className="text-[1.8vh] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
                     <Disc className="w-4 h-4" /> Tracklist
@@ -355,7 +358,7 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
                           ? 'bg-blue-600 text-white shadow-lg scale-[1.01] origin-left z-10' 
                           : isPlayable
                             ? 'text-slate-300 hover:bg-white/5'
-                            : 'text-slate-600 opacity-40' // Unavailable state
+                            : 'text-slate-500/40' // Unavailable state: dim and transparent
                       }`}
                     >
                       <div className="flex items-center gap-[2vh] overflow-hidden flex-1 mr-4">
@@ -373,7 +376,7 @@ const TvInterface: React.FC<TvInterfaceProps> = ({
                            ) : (
                              <span className="text-[2.2vh] font-medium truncate block">
                                {track.title} 
-                               {!isPlayable && <span className="ml-2 text-[1.5vh] border border-slate-600 rounded px-1.5 py-0.5 align-middle opacity-70">N/A</span>}
+                               {!isPlayable && <span className="ml-2 text-[1.5vh] border border-slate-600 rounded px-1.5 py-0.5 align-middle opacity-50">N/A</span>}
                              </span>
                            )}
                         </div>
